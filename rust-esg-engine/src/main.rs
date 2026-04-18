@@ -66,7 +66,7 @@ fn main() {
 
         reports.push(ESGReport {
             site_id: site.site_id,
-            gri_304_biodiversity_score: format!("{:.2} (Adjusted NDVI)", trust_score),
+            gri_304_biodiversity_score: format!("{:.2} (Biomass-Validated)", trust_score),
             data_integrity_flag: integrity,
             final_trust_score: trust_score,
             estimated_biomass: site.estimated_biomass, // Eksekusi pemindahan data

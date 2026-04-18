@@ -7,44 +7,40 @@ on:
     branches: [ "main" ]
 
 jobs:
-  python-tests:
+  test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install fastapi uvicorn pytest httpx pydantic earthengine-api
-        
-    - name: Test FastAPI with pytest
-      run: |
-        pytest test_api.py -v
+    - uses: actions/checkout@v4
 
-  rust-tests:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    
+    # ── Rust Setup & Build ──────────────────────────────────
     - name: Set up Rust
       uses: dtolnay/rust-toolchain@stable
-      
-    - name: Run Cargo Tests
-      working-directory: ./rust-esg-engine
-      run: cargo test --verbose
 
-  # Optional: Linter step
-  # lint:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - uses: actions/checkout@v3
-  #   - name: Run flake8
-  #     run: pip install flake8 && flake8 .
-  #   - name: Run cargo clippy
-  #     working-directory: ./rust-esg-engine
-  #     run: cargo clippy -- -D warnings
+    - name: Cache Cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          rust-esg-engine/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('rust-esg-engine/Cargo.lock') }}
+
+    - name: Build & Test Rust ESG Engine
+      working-directory: ./rust-esg-engine
+      run: |
+        cargo test --verbose
+        cargo build --release
+
+    # ── Python Setup & Test ─────────────────────────────────
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run pytest
+      run: pytest test_api.py -v

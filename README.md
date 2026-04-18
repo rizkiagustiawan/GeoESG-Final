@@ -6,6 +6,8 @@
 ![Rust](https://img.shields.io/badge/Rust-ESG%20Engine-000000?logo=rust&logoColor=white)
 ![R](https://img.shields.io/badge/R-Shiny%20%7C%20ggplot2-276DC3?logo=r&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Multi--Stage-2496ED?logo=docker&logoColor=white)
+![CI](https://github.com/rizkiagustiawan/GeoESG-Final/actions/workflows/main.yml/badge.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 ---
 
@@ -14,7 +16,7 @@
 GeoESG adalah sistem **polyglot pipeline** (Python → Rust → R) yang melakukan:
 
 1. **Ekstraksi data satelit** dari Google Earth Engine (Sentinel-2 NDVI, Sentinel-1 SAR Radar)
-2. **Audit integritas data** — membandingkan data satelit (90%) vs ground truth lapangan (10%) untuk mendeteksi risiko *greenwashing*
+2. **Audit integritas data** — membandingkan estimasi satelit (80%) vs ground truth lapangan (20%) menggunakan *Exponential Decay Trust Score* untuk mendeteksi risiko *greenwashing*
 3. **Pelaporan otomatis** sesuai kerangka GRI 304 (Keanekaragaman Hayati) & estimasi stok karbon
 
 ### Mengapa 3 Bahasa?
@@ -60,7 +62,7 @@ GeoESG adalah sistem **polyglot pipeline** (Python → Rust → R) yang melakuka
 
 ```bash
 # 1. Clone & setup
-git clone https://github.com/YOUR_USERNAME/GeoESG-Final.git
+git clone https://github.com/rizkiagustiawan/GeoESG-Final.git
 cd GeoESG-Final
 
 # 2. Python environment
@@ -131,11 +133,13 @@ curl -X POST http://localhost:8000/generate-esg-batch \
 GeoESG-Final/
 ├── api_server.py              # FastAPI orchestrator (6 endpoints)
 ├── index.html                 # Command Center UI (Leaflet + Chart.js)
+├── test_api.py                # Pytest suite (6 tests)
+├── requirements.txt           # Python dependencies
 ├── python-gee-ai/
-│   └── extractor.py           # GEE extraction (Sentinel-2/1, biomassa)
+│   └── extractor.py           # GEE extraction (Sentinel-2/1, fusi sensor)
 ├── rust-esg-engine/
 │   ├── Cargo.toml
-│   └── src/main.rs            # Trust score & greenwashing detection
+│   └── src/main.rs            # Trust score & greenwashing detection (4 unit tests)
 ├── r-reporting/
 │   ├── app.R                  # Shiny dashboard
 │   ├── dashboard.R            # Markdown report generator
@@ -146,8 +150,10 @@ GeoESG-Final/
 │   ├── esg_metrics.json       # Output Rust → Input R
 │   └── geoesg.db              # SQLite audit logs
 ├── credentials/               # GEE service account key (gitignored)
-├── mcp_server.py              # MCP tool for AI agent integration
+├── .github/workflows/
+│   └── main.yml               # CI/CD: Rust test + Python test
 ├── Dockerfile                 # Multi-stage build (Rust + Ubuntu + R)
+├── docker-compose.yml         # Production + testing profiles
 └── run_pipeline.sh            # CLI pipeline runner
 ```
 

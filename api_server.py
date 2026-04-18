@@ -21,7 +21,9 @@ import datetime
 import tempfile
 import shutil
 import asyncio
+import time
 import uuid
+import threading
 from functools import partial
 from typing import List, Optional
 
@@ -61,7 +63,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         site_id TEXT,
         sat_ndvi REAL,
-        ground_ndvi REAL,
+        ground_biomass REAL,
         trust_score REAL,
         biomass REAL,
         carbon REAL,
@@ -109,7 +111,6 @@ RATE_LIMIT_DB = {}
 def rate_limit(request: Request):
     """Rate limiter sederhana berbasis IP (Maks 5 request / menit)."""
     client_ip = request.client.host if request.client else "unknown"
-    import time
     current_time = time.time()
     
     if client_ip in RATE_LIMIT_DB:
@@ -126,6 +127,8 @@ def rate_limit(request: Request):
 
 
 # ─── Pipeline Execution (Thread-Safe) ────────────────────────────────────────
+_rust_lock = threading.Lock()  # Serialisasi akses ke Rust binary (shared I/O)
+
 def _run_pipeline_sync(user_inputs: list) -> tuple:
     """
     Menjalankan pipeline Python→Rust di isolated temp directory.
@@ -182,36 +185,38 @@ def _run_pipeline_sync(user_inputs: list) -> tuple:
             BASE_DIR, "rust-esg-engine", "target", "release", "rust-esg-engine"
         )
 
-        # Buat symlink sementara agar Rust bisa baca dari ../shared_data/
-        # (Rust binary expects relative path ../shared_data/raw_data.json)
-        # Copy raw_data ke shared_data standar sementara
+        # Rust binary membaca ../shared_data/raw_data.json secara hardcoded.
+        # Kita gunakan threading Lock untuk memastikan hanya satu request
+        # yang menulis + menjalankan Rust pada satu waktu.
         standard_raw = os.path.join(SHARED_DATA, "raw_data.json")
         standard_esg = os.path.join(SHARED_DATA, "esg_metrics.json")
 
-        shutil.copy2(raw_data_path, standard_raw)
+        with _rust_lock:
+            shutil.copy2(raw_data_path, standard_raw)
 
-        if os.path.exists(rust_binary):
-            result_rs = subprocess.run(
-                [rust_binary],
-                capture_output=True,
-                text=True,
-                timeout=30,
-                cwd=os.path.join(BASE_DIR, "rust-esg-engine"),
-            )
-        else:
-            result_rs = subprocess.run(
-                ["cargo", "run", "--release", "-q"],
-                capture_output=True,
-                text=True,
-                timeout=120,
-                cwd=os.path.join(BASE_DIR, "rust-esg-engine"),
-            )
-        if result_rs.returncode != 0:
-            print(f"⚠️ [{request_id}] Rust stderr: {result_rs.stderr}")
+            if os.path.exists(rust_binary):
+                result_rs = subprocess.run(
+                    [rust_binary],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    cwd=os.path.join(BASE_DIR, "rust-esg-engine"),
+                )
+            else:
+                result_rs = subprocess.run(
+                    ["cargo", "run", "--release", "-q"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    cwd=os.path.join(BASE_DIR, "rust-esg-engine"),
+                )
 
-        # Copy esg_metrics back
-        if os.path.exists(standard_esg):
-            shutil.copy2(standard_esg, esg_metrics_path)
+            if result_rs.returncode != 0:
+                print(f"⚠️ [{request_id}] Rust stderr: {result_rs.stderr}")
+
+            # Copy esg_metrics back to isolated work dir
+            if os.path.exists(standard_esg):
+                shutil.copy2(standard_esg, esg_metrics_path)
 
         # ── Step 3: Baca Hasil ───────────────────────────────────────
         with open(raw_data_path, "r") as f:
@@ -304,7 +309,7 @@ def log_audit(conn, site_id, site_raw, site_esg, ground_truth_biomass):
     """Insert audit log ke SQLite."""
     conn.execute(
         """INSERT INTO audit_logs
-           (site_id, sat_ndvi, ground_ndvi, trust_score, biomass, carbon, status)
+           (site_id, sat_ndvi, ground_biomass, trust_score, biomass, carbon, status)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (
             site_id,
@@ -416,7 +421,7 @@ async def get_audit_history():
                 "id": row["id"],
                 "site_id": row["site_id"],
                 "sat_ndvi": row["sat_ndvi"],
-                "ground_biomass": row["ground_ndvi"],
+                "ground_biomass": row["ground_biomass"],
                 "trust_score": row["trust_score"],
                 "biomass": row["biomass"],
                 "carbon": row["carbon"],

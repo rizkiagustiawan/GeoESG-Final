@@ -27,10 +27,10 @@ RUN R -e "install.packages(c('shiny','sf','leaflet','dplyr','ggplot2','jsonlite'
 
 WORKDIR /app
 
-# 3. Instal Library Python GEE & API
-RUN pip3 install --no-cache-dir \
-    fastapi uvicorn earthengine-api \
-    pandas geopandas shapely pydantic
+# 3. Instal Library Python via requirements.txt
+COPY requirements.txt /app/requirements.txt
+RUN pip3 install --no-cache-dir -r /app/requirements.txt \
+    && pip3 install --no-cache-dir pandas geopandas shapely
 
 # 4. Salin File Proyek & Binary Rust
 COPY . /app

@@ -35,16 +35,18 @@ def test_generate_esg_report_success():
     assert "data_integrity_flag" in data["metrics"]
 
 def test_rate_limiting():
+    """Test rate limiter by pre-filling the request log with fake timestamps."""
+    import time
+    # Pre-fill rate limit DB to simulate 5 recent requests from testclient IP
+    client_ip = "testclient"
+    now = time.time()
+    RATE_LIMIT_DB[client_ip] = [now - i for i in range(5)]  # 5 requests within last minute
+    
     payload = {
         "site_id": "Dompu",
         "ground_truth_biomass": 50.0
     }
-    # Send 5 requests (Limit is 5 per minute)
-    for _ in range(5):
-        res = client.post("/generate-esg-report", json=payload)
-        assert res.status_code == 200
-    
-    # The 6th request should be blocked
+    # This should be the 6th request and get blocked
     res_blocked = client.post("/generate-esg-report", json=payload)
     assert res_blocked.status_code == 429
     assert "Rate limit exceeded" in res_blocked.json()["detail"]

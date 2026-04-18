@@ -1,0 +1,15 @@
+# GeoESG A.E.C.O — Python Dependencies
+# =====================================
+# Install: pip install -r requirements.txt
+
+# Core API
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pydantic>=2.0.0
+
+# Google Earth Engine SDK
+earthengine-api>=0.1.370
+
+# Testing
+pytest>=7.0.0
+httpx>=0.24.0

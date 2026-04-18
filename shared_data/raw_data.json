@@ -5,10 +5,10 @@
         "radar_vh_db": -15.749,
         "radar_vv_db": -9.266,
         "biomass_data_source": "Fusi Optik & SAR (Sentinel-1 & 2) via GEE",
-        "ground_truth_10": 50.0,
-        "error_margin": 0.398,
+        "ground_truth_10": 100.0,
+        "error_margin": 0.699,
         "estimated_biomass": 30.11,
         "estimated_carbon": 13.85,
-        "timestamp": "2026-04-19T01:24:19.137266"
+        "timestamp": "2026-04-19T01:45:16.593698"
     }
 ]

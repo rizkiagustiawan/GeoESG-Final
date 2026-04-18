@@ -1,9 +1,9 @@
 [
   {
     "site_id": "Dompu",
-    "gri_304_biodiversity_score": "4.66 (Adjusted NDVI)",
+    "gri_304_biodiversity_score": "1.34 (Biomass-Validated)",
     "data_integrity_flag": "AUDIT_FAIL: High Deviation (Greenwashing Risk, RE > 25%)",
-    "final_trust_score": 4.664335666863243,
+    "final_trust_score": 1.3386847961641681,
     "estimated_biomass": 30.11,
     "estimated_carbon": 13.85
   }

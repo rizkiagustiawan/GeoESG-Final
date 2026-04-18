@@ -7,7 +7,7 @@ Google Earth Engine (GEE) untuk wilayah NTB.
 Sumber Data:
   - NDVI Optik    : Sentinel-2 SR Harmonized (B8/B4)
   - Radar VH/VV   : Sentinel-1 GRD (C-Band SAR)
-  - Biomassa/Karbon: Estimasi allometrik dari NDVI (IPCC 0.47 factor)
+  - Biomassa/Karbon: Fusi Optik+SAR, konversi karbon SNI 7724:2011 (0.46)
 
 Output → shared_data/raw_data.json
 """
