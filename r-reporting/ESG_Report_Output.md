@@ -13,4 +13,4 @@
 ## 🔬 Catatan Teknis Ekstraksi
 - **Dataset Biomassa:** Menggunakan integrasi GEDI L4A / ALOS PALSAR.
 - **Faktor Konversi:** Carbon = Aboveground Biomass (AGB) × 0.47 (IPCC Standard).
-- **Waktu Audit:**  18 April 2026 09:32:19 
+- **Waktu Audit:**  18 April 2026 22:05:00 

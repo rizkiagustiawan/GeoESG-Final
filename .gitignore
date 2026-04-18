@@ -1,0 +1,11 @@
+# Abaikan folder hasil compile & environment
+target/
+venv/
+rust-esg-engine/target/
+
+# Abaikan kunci rahasia
+credentials/
+
+# Abaikan file sampah
+.gitignore.
+Untitled-1.sh
