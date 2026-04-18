@@ -2,10 +2,17 @@
 target/
 venv/
 rust-esg-engine/target/
+__pycache__/
+*.pyc
 
 # Abaikan kunci rahasia
 credentials/
 
+# Abaikan database lokal
+shared_data/geoesg.db
+
 # Abaikan file sampah
-.gitignore.
 Untitled-1.sh
+*.swp
+*.swo
+.DS_Store

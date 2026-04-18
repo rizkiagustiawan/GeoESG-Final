@@ -1,10 +1,10 @@
 [
   {
-    "site_id": "Sumbawa Barat",
-    "gri_304_biodiversity_score": "0.73 (Adjusted NDVI)",
-    "data_integrity_flag": "AUDIT_PASS: High Consistency",
-    "final_trust_score": 0.7256,
-    "estimated_biomass": 110.14,
-    "estimated_carbon": 51.76
+    "site_id": "Dompu",
+    "gri_304_biodiversity_score": "4.66 (Adjusted NDVI)",
+    "data_integrity_flag": "AUDIT_FAIL: High Deviation (Greenwashing Risk, RE > 25%)",
+    "final_trust_score": 4.664335666863243,
+    "estimated_biomass": 30.11,
+    "estimated_carbon": 13.85
   }
 ]

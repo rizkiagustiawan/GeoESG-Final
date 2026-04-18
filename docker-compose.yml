@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  geoesg-server:
+    build: .
+    image: geoesg-server:v2.2
+    container_name: geoesg-server
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - geoesg-data:/app/shared_data
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  geoesg-test:
+    build: .
+    image: geoesg-server:v2.2
+    container_name: geoesg-test
+    command: ["pytest", "test_api.py", "-v"]
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    profiles:
+      - testing
+
+volumes:
+  geoesg-data:
+    driver: local

@@ -1,161 +1,203 @@
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="GeoESG A.E.C.O — Dashboard audit kepatuhan lingkungan berbasis data satelit">
     <title>GeoESG Command Center v2</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
-            --bg: #0f172a;
-            --card: #1e293b;
-            --accent: #38bdf8;
-            --success: #10b981;
-            --danger: #ef4444;
+            --bg: #0a0f1e; --surface: #111827; --card: #1a2236;
+            --border: rgba(56,189,248,0.12); --accent: #38bdf8;
+            --accent-glow: rgba(56,189,248,0.15); --success: #10b981;
+            --danger: #ef4444; --warn: #f59e0b; --text: #e2e8f0;
+            --text-dim: #64748b; --radius: 16px;
         }
-
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: var(--bg);
-            color: #f8fafc;
-            margin: 0;
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg); color: var(--text);
+            display: flex; height: 100vh; overflow: hidden;
+            background-image: radial-gradient(ellipse at 20% 50%, rgba(56,189,248,0.04) 0%, transparent 60%),
+                              radial-gradient(ellipse at 80% 20%, rgba(16,185,129,0.03) 0%, transparent 50%);
         }
-
+        /* Sidebar */
         .sidebar {
-            width: 350px;
-            background: var(--card);
-            border-right: 1px solid #334155;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            overflow-y: auto;
+            width: 380px; min-width: 380px; background: var(--surface);
+            border-right: 1px solid var(--border); padding: 24px;
+            display: flex; flex-direction: column; gap: 16px;
+            overflow-y: auto; z-index: 10;
         }
-
-        .main-content {
-            flex: 1;
-            display: grid;
-            grid-template-rows: 1fr 300px;
-            padding: 20px;
-            gap: 20px;
-            overflow-y: auto;
-        }
-
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .logo h1 { font-size: 1.3rem; font-weight: 700; background: linear-gradient(135deg, var(--accent), #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo-sub { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; letter-spacing: 0.5px; text-transform: uppercase; }
+        /* Cards */
         .card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 20px;
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 20px;
+            transition: border-color 0.3s, box-shadow 0.3s;
         }
-
-        #map {
-            height: 100%;
-            border-radius: 12px;
-            border: 1px solid #334155;
-            z-index: 1;
+        .card:hover { border-color: rgba(56,189,248,0.25); box-shadow: 0 0 30px var(--accent-glow); }
+        .card-title { font-size: 0.8rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+        /* Form */
+        label { font-size: 0.82rem; font-weight: 500; color: var(--text-dim); display: block; margin-bottom: 6px; }
+        select, input[type="number"] {
+            width: 100%; padding: 10px 14px; border-radius: 10px;
+            border: 1px solid var(--border); background: var(--bg);
+            color: var(--accent); font-family: 'Inter', sans-serif;
+            font-size: 0.9rem; font-weight: 600; outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
         }
-
-        .btn {
-            width: 100%;
-            background: var(--accent);
-            color: var(--bg);
-            border: none;
-            padding: 12px;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.3s;
+        select:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+        /* Button */
+        .btn-primary {
+            width: 100%; padding: 14px; border: none; border-radius: 12px;
+            font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 700;
+            cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden;
+            background: linear-gradient(135deg, var(--accent), #6366f1);
+            color: white; letter-spacing: 0.5px; margin-top: 16px;
         }
-
-        .btn:hover {
-            opacity: 0.8;
-            transform: translateY(-2px);
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(56,189,248,0.3); }
+        .btn-primary:disabled { opacity: 0.5; cursor: wait; transform: none; }
+        .btn-primary::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: translateX(-100%);
         }
-
-        .btn:disabled {
-            background: #64748b;
-            cursor: wait;
+        .btn-primary:hover::after { animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 100% { transform: translateX(100%); } }
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px; border-radius: 20px; font-size: 0.78rem;
+            font-weight: 600; margin-top: 12px; width: fit-content;
         }
-
-        select,
-        input {
-            width: 90%;
-            padding: 10px;
-            margin-top: 5px;
-            border-radius: 6px;
-            border: 1px solid #334155;
-            background: var(--bg);
-            color: var(--accent);
-            font-weight: bold;
+        .status-badge.ready { background: rgba(16,185,129,0.12); color: var(--success); }
+        .status-badge.loading { background: rgba(245,158,11,0.12); color: var(--warn); }
+        .status-badge.error { background: rgba(239,68,68,0.12); color: var(--danger); }
+        .status-badge.success { background: rgba(16,185,129,0.12); color: var(--success); }
+        .pulse { animation: pulse 2s ease-in-out infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+        /* Main Content */
+        .main { flex: 1; display: grid; grid-template-rows: 1fr auto; padding: 20px; gap: 16px; overflow: hidden; }
+        #map { height: 100%; border-radius: var(--radius); border: 1px solid var(--border); z-index: 1; }
+        .bottom-panels { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; max-height: 300px; }
+        /* Report panel */
+        .report-panel { overflow-y: auto; max-height: 280px; }
+        .report-panel h1 { font-size: 1.1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; }
+        .report-panel h2 { font-size: 0.95rem; color: var(--text); margin-top: 14px; }
+        .report-panel h3 { font-size: 0.85rem; color: var(--text-dim); margin-top: 10px; }
+        .report-panel table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin: 8px 0; }
+        .report-panel th, .report-panel td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+        .report-panel th { color: var(--accent); font-weight: 600; }
+        .report-panel blockquote { border-left: 3px solid var(--warn); padding: 8px 12px; margin: 8px 0; background: rgba(245,158,11,0.06); border-radius: 0 8px 8px 0; font-size: 0.78rem; color: var(--text-dim); }
+        .report-panel code { background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
+        .report-panel hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+        .report-panel p, .report-panel li { font-size: 0.82rem; line-height: 1.6; color: var(--text-dim); }
+        /* History */
+        .history-item { border-bottom: 1px solid var(--border); padding: 10px 0; }
+        .history-item:last-child { border: none; }
+        .history-site { font-weight: 600; color: var(--text); font-size: 0.85rem; }
+        .history-meta { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+        .tag-pass { color: var(--success); font-weight: 700; }
+        .tag-fail { color: var(--danger); font-weight: 700; }
+        /* Metric pills */
+        .metric-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+        .metric-pill {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 12px; padding: 12px; text-align: center;
         }
-
-        canvas {
-            max-height: 200px;
+        .metric-value { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+        .metric-label { font-size: 0.7rem; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        /* Skeleton */
+        .skeleton { background: linear-gradient(90deg, var(--card) 25%, rgba(56,189,248,0.05) 50%, var(--card) 75%); background-size: 200% 100%; animation: skeleton 1.5s infinite; border-radius: 8px; }
+        @keyframes skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        /* Responsive */
+        @media (max-width: 1024px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; min-width: 100%; max-height: 45vh; flex-direction: row; flex-wrap: wrap; padding: 16px; }
+            .sidebar > * { flex: 1; min-width: 250px; }
+            .main { min-height: 55vh; }
+            .bottom-panels { grid-template-columns: 1fr; }
         }
-
-        #statusText {
-            font-size: 14px;
-            text-align: center;
-            margin-top: 10px;
-            display: block;
+        @media (max-width: 640px) {
+            .sidebar { padding: 12px; gap: 10px; }
+            .metric-row { grid-template-columns: 1fr; }
         }
     </style>
 </head>
-
 <body>
-    <div class="sidebar">
-        <h2 style="color: var(--accent); margin: 0;">🌍 GeoESG A.E.C.O</h2>
-        <p style="font-size: 0.8rem; color: #94a3b8; margin-top:5px;">Sumbawa Monitoring Station</p>
+    <aside class="sidebar">
+        <div>
+            <div class="logo">
+                <span style="font-size:1.8rem;">🌍</span>
+                <div><h1>GeoESG A.E.C.O</h1><div class="logo-sub">Automated ESG Compliance Observer</div></div>
+            </div>
+        </div>
 
         <div class="card">
-            <label>📍 Pilih Wilayah (Auto-Load)</label>
+            <div class="card-title">📍 Kontrol Audit</div>
+            <label for="siteSelector">Wilayah Target</label>
             <select id="siteSelector" onchange="focusMap()"></select>
+            <label for="gtInput" style="margin-top:14px;">Field Biomass In-Situ (Mg/ha)</label>
+            <input type="number" id="gtInput" value="120.5" step="0.1" min="0" max="500">
+            <button class="btn-primary" id="auditBtn" onclick="generateReport()">🛰️ MULAI AUDIT SATELIT</button>
+            <div id="statusBadge" class="status-badge ready">● Sistem Siap</div>
+        </div>
 
-            <label style="display:block; margin-top:15px;">🔬 Ground Truth NDVI</label>
-            <input type="number" id="gtInput" value="0.71" step="0.01">
-
-            <button class="btn" id="auditBtn" style="margin-top:20px;" onclick="generateReport()">MULAI AUDIT
-                AI</button>
-            <span id="statusText" style="color: #94a3b8;">Sistem Siap.</span>
+        <div class="card" id="metricsCard" style="display:none;">
+            <div class="card-title">📊 Hasil Terakhir</div>
+            <div class="metric-row">
+                <div class="metric-pill"><div class="metric-value" id="mBiomass">—</div><div class="metric-label">Sat Biomass (Mg/ha)</div></div>
+                <div class="metric-pill"><div class="metric-value" id="mTrust">—</div><div class="metric-label">Trust Score</div></div>
+            </div>
+            <div class="metric-row">
+                <div class="metric-pill"><div class="metric-value" id="mNDVI">—</div><div class="metric-label">NDVI Satelit</div></div>
+                <div class="metric-pill"><div class="metric-value" id="mCarbon">—</div><div class="metric-label">Karbon (Mg C/ha)</div></div>
+            </div>
         </div>
 
         <div class="card">
-            <h4 style="margin-top:0;">📊 Analitik NDVI Terakhir</h4>
-            <canvas id="auditChart"></canvas>
+            <div class="card-title">📈 Perbandingan Biomassa (Satelit vs Lapangan)</div>
+            <canvas id="auditChart" style="max-height:160px;"></canvas>
         </div>
-    </div>
+    </aside>
 
-    <div class="main-content">
+    <main class="main">
         <div id="map"></div>
-        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
-            <div class="card" id="reportView" style="overflow-y: auto;">
-                <h4 style="margin:0 0 10px 0; color:var(--accent);">📄 Hasil Audit R-Markdown</h4>
-                <div id="reportContainer" style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">Menunggu data...
-                </div>
+        <div class="bottom-panels">
+            <div class="card report-panel">
+                <div class="card-title">📄 Laporan Audit</div>
+                <div id="reportContainer"><p style="color:var(--text-dim);">Pilih wilayah dan klik "Mulai Audit" untuk memulai...</p></div>
             </div>
-            <div class="card" style="overflow-y: auto;">
-                <h4 style="margin:0 0 10px 0; color:var(--success);">🕒 History Log (SQLite)</h4>
-                <div id="historyLog" style="font-size: 0.85rem; color: #94a3b8;"></div>
+            <div class="card" style="overflow-y:auto; max-height:280px;">
+                <div class="card-title">🕒 Riwayat Audit</div>
+                <div id="historyLog"><p style="color:var(--text-dim);">Memuat...</p></div>
             </div>
         </div>
-    </div>
+    </main>
 
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const map = L.map('map').setView([-8.6, 117.5], 8);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+        // ─── Map Setup ──────────────────────────────────────────────
+        const map = L.map('map', { zoomControl: true }).setView([-8.6, 117.5], 8);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '&copy; Esri', maxZoom: 18
+        }).addTo(map);
 
-        let geojsonLayer;
+        let geojsonLayer, myChart;
         const siteData = {};
-        let regionCounter = 0;
 
-        // Inisialisasi Grafik
-        let myChart;
+        // ─── Chart ──────────────────────────────────────────────────
         function initChart(sat = 0, ground = 0) {
             const ctx = document.getElementById('auditChart').getContext('2d');
             if (myChart) myChart.destroy();
@@ -164,125 +206,136 @@
                 data: {
                     labels: ['Satelit (GEE)', 'Lapangan (In-Situ)'],
                     datasets: [{
-                        label: 'Skor NDVI',
                         data: [sat, ground],
-                        backgroundColor: ['#38bdf8', '#10b981'],
-                        borderRadius: 4
+                        backgroundColor: ['rgba(56,189,248,0.7)', 'rgba(16,185,129,0.7)'],
+                        borderColor: ['#38bdf8', '#10b981'],
+                        borderWidth: 2, borderRadius: 8, barPercentage: 0.6,
                     }]
                 },
-                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 1 } } }
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(56,189,248,0.06)' }, ticks: { color: '#64748b', font: { size: 10 } } },
+                        x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } }
+                    }
+                }
             });
         }
         initChart();
 
-        // Load Poligon NTB
+        // ─── Status ─────────────────────────────────────────────────
+        function setStatus(type, text) {
+            const el = document.getElementById('statusBadge');
+            el.className = `status-badge ${type}`;
+            el.innerHTML = type === 'loading' ? `<span class="pulse">◉</span> ${text}` : `● ${text}`;
+        }
+
+        // ─── Load Map ───────────────────────────────────────────────
         async function loadRegionalBorders() {
             try {
-                const response = await fetch('/api/regional-borders');
-                const cleanGeoJson = await response.json();
-                const selector = document.getElementById('siteSelector');
-
-                geojsonLayer = L.geoJSON(cleanGeoJson, {
-                    style: function () { return { color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.2, weight: 2 }; },
-                    onEachFeature: function (feature, layer) {
-                        const props = feature.properties;
-                        const regionName = props.NAMOBJ || props.WADMKC || props.WADMKK || props.KABUPATEN || props.Kecamatan || "Wilayah_" + regionCounter;
-                        siteData[regionName] = { poly: layer };
-                        layer.bindPopup(`<b>${regionName}</b><br>Belum diaudit.`);
-
-                        const option = document.createElement("option");
-                        option.value = regionName; option.text = regionName;
-                        selector.appendChild(option);
-                        regionCounter++;
+                const res = await fetch('/api/regional-borders');
+                const gj = await res.json();
+                const sel = document.getElementById('siteSelector');
+                geojsonLayer = L.geoJSON(gj, {
+                    style: () => ({ color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.1, weight: 1.5, dashArray: '4' }),
+                    onEachFeature: (feat, layer) => {
+                        const name = feat.properties.ADM2_NAME || feat.properties.NAMOBJ || 'Unknown';
+                        siteData[name] = { poly: layer };
+                        layer.bindPopup(`<b style="font-size:14px;">${name}</b><br><span style="color:#94a3b8;">Belum diaudit</span>`);
+                        const opt = document.createElement('option');
+                        opt.value = name; opt.text = name;
+                        sel.appendChild(opt);
                     }
                 }).addTo(map);
-                map.fitBounds(geojsonLayer.getBounds());
-            } catch (error) {
-                console.error("Gagal memuat peta:", error);
-            }
+                map.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
+            } catch (e) { console.error('Map load error:', e); }
         }
 
         function focusMap() {
-            const selectedSite = document.getElementById('siteSelector').value;
-            if (siteData[selectedSite]) {
-                const layer = siteData[selectedSite].poly;
-                map.flyToBounds(layer.getBounds(), { duration: 1.5 });
-                layer.openPopup();
+            const name = document.getElementById('siteSelector').value;
+            if (siteData[name]) {
+                map.flyToBounds(siteData[name].poly.getBounds(), { duration: 1.2, padding: [40, 40] });
+                siteData[name].poly.openPopup();
             }
         }
 
-        // Load History SQLite
+        // ─── History ────────────────────────────────────────────────
         async function updateHistory() {
             try {
                 const res = await fetch('/api/audit-history');
                 const data = await res.json();
-                const log = document.getElementById('historyLog');
-                if (data.length === 0) return log.innerHTML = "Belum ada log.";
-
-                log.innerHTML = data.map(h => `
-                    <div style="border-bottom: 1px solid #334155; padding: 8px 0;">
-                        <b style="color:#f8fafc;">${h.site_id}</b><br>
-                        NDVI: Sat(${h.sat_ndvi}) vs Gt(${h.ground_ndvi})<br>
-                        Status: <span style="color:${h.status.includes('PASS') ? '#10b981' : '#ef4444'}">${h.status.includes('PASS') ? 'PASS' : 'FAIL'}</span>
-                    </div>
-                `).join('');
+                const el = document.getElementById('historyLog');
+                if (!data.length) { el.innerHTML = '<p style="color:var(--text-dim);">Belum ada riwayat.</p>'; return; }
+                el.innerHTML = data.slice(0, 15).map(h => `
+                    <div class="history-item">
+                        <div class="history-site">${escapeHtml(h.site_id)}</div>
+                        <div class="history-meta">
+                            Biomass: ${h.biomass} vs ${h.ground_biomass} —
+                            <span class="${h.status.includes('PASS') ? 'tag-pass' : 'tag-fail'}">${h.status.includes('PASS') ? '✓ PASS' : '✗ FAIL'}</span>
+                        </div>
+                    </div>`).join('');
             } catch (e) { console.error(e); }
         }
 
-        // Jalankan Eksekusi
+        // ─── Sanitize ───────────────────────────────────────────────
+        function escapeHtml(str) {
+            const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
+        }
+
+        // ─── Audit ──────────────────────────────────────────────────
         async function generateReport() {
-            const selectedSite = document.getElementById('siteSelector').value;
-            const gtValue = parseFloat(document.getElementById('gtInput').value);
+            const site = document.getElementById('siteSelector').value;
+            const gt = parseFloat(document.getElementById('gtInput').value);
             const btn = document.getElementById('auditBtn');
-            const statusText = document.getElementById('statusText');
+            if (!site) return alert('Peta belum termuat!');
+            if (isNaN(gt) || gt < 0) return alert('Biomassa lapangan tidak valid');
 
-            if (!selectedSite) return alert("Peta belum termuat!");
-
-            btn.disabled = true; btn.innerText = "Mengeksekusi AI...";
-            statusText.innerHTML = "<span style='color: #f59e0b;'>⏳ Menghubungi Satelit...</span>";
+            btn.disabled = true; btn.textContent = '⏳ Mengeksekusi Pipeline...';
+            setStatus('loading', 'Menghubungi satelit...');
+            document.getElementById('reportContainer').innerHTML = '<div class="skeleton" style="height:120px;"></div>';
 
             try {
-                const response = await fetch('/generate-esg-report', {
+                const res = await fetch('/generate-esg-report', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ site_id: selectedSite, ground_truth_ndvi: gtValue })
+                    body: JSON.stringify({ site_id: site, ground_truth_biomass: gt })
                 });
-                const data = await response.json();
+                const data = await res.json();
+                if (data.detail) throw new Error(data.detail);
 
                 if (data.status === 'success') {
-                    statusText.innerHTML = `<span style="color:#10b981;">✅ Audit Sukses!</span>`;
-
-                    // Render Laporan
-                    const formattedReport = data.report_markdown.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-                    document.getElementById('reportContainer').innerHTML = formattedReport;
-
-                    // Update Grafik
-                    initChart(data.metrics.satellite_ndvi_90, gtValue);
-
-                    // Update Peta
-                    const layer = siteData[selectedSite].poly;
-                    if (data.metrics.data_integrity_flag.includes('PASS')) {
-                        layer.setStyle({ color: '#10b981', fillColor: '#10b981', fillOpacity: 0.6 });
-                        layer.setPopupContent(`<b>${selectedSite}</b><br><span style="color:green;">✅ LULUS AUDIT</span>`).openPopup();
-                    } else {
-                        layer.setStyle({ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.6 });
-                        layer.setPopupContent(`<b>${selectedSite}</b><br><span style="color:red;">❌ RISIKO GREENWASHING</span>`).openPopup();
-                    }
-
-                    // Refresh Log
+                    setStatus('success', 'Audit Berhasil!');
+                    // Render markdown properly
+                    document.getElementById('reportContainer').innerHTML = marked.parse(data.report_markdown);
+                    // Update metrics
+                    const m = data.metrics;
+                    document.getElementById('metricsCard').style.display = 'block';
+                    document.getElementById('mNDVI').textContent = m.satellite_ndvi_90?.toFixed(3) || '—';
+                    document.getElementById('mTrust').textContent = m.trust_score?.toFixed(3) || '—';
+                    document.getElementById('mBiomass').textContent = m.estimated_biomass?.toFixed(1) || '—';
+                    document.getElementById('mCarbon').textContent = m.estimated_carbon?.toFixed(1) || '—';
+                    document.getElementById('mTrust').style.color = m.data_integrity_flag?.includes('PASS') ? 'var(--success)' : 'var(--danger)';
+                    // Update chart (menggunakan Biomassa untuk perbandingan)
+                    initChart(m.estimated_biomass, gt);
+                    // Update map polygon
+                    const layer = siteData[site].poly;
+                    const pass = m.data_integrity_flag?.includes('PASS');
+                    layer.setStyle({ color: pass ? '#10b981' : '#ef4444', fillColor: pass ? '#10b981' : '#ef4444', fillOpacity: 0.5, weight: 2.5, dashArray: '' });
+                    layer.setPopupContent(`<b style="font-size:14px;">${escapeHtml(site)}</b><br><span style="color:${pass ? '#10b981' : '#ef4444'}; font-weight:bold;">${pass ? '✅ LULUS AUDIT' : '❌ RISIKO GREENWASHING'}</span><br><span style="color:#94a3b8; font-size:12px;">NDVI: ${m.satellite_ndvi_90} | Trust: ${m.trust_score?.toFixed(3)}</span>`).openPopup();
                     updateHistory();
                 }
-            } catch (error) {
-                statusText.innerHTML = `<span style="color:#ef4444;">❌ Server Error.</span>`;
+            } catch (err) {
+                setStatus('error', 'Gagal: ' + err.message);
+                document.getElementById('reportContainer').innerHTML = `<p style="color:var(--danger);">❌ ${escapeHtml(err.message)}</p>`;
             } finally {
-                btn.disabled = false; btn.innerText = "MULAI AUDIT AI";
+                btn.disabled = false; btn.textContent = '🛰️ MULAI AUDIT SATELIT';
             }
         }
 
-        // Panggil saat halaman dimuat
+        // Init
         loadRegionalBorders();
         updateHistory();
     </script>
 </body>
-
 </html>

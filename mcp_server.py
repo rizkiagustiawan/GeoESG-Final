@@ -16,7 +16,7 @@ async def trigger_esg_audit(site_id: str, ground_truth_ndvi: float) -> str:
         site_id: Nama wilayah (contoh: "Wilayah_1", "Lombok Utara", atau sesuaikan dengan permintaan).
         ground_truth_ndvi: Nilai NDVI aktual di lapangan (antara 0.0 hingga 1.0).
     """
-    url = "http://localhost:8080/generate-esg-report"
+    url = "http://localhost:8000/generate-esg-report"
     payload = {"site_id": site_id, "ground_truth_ndvi": ground_truth_ndvi}
 
     try:
