@@ -155,34 +155,39 @@ def extract_alos_gee(region_geometry, site_id):
 
 def estimate_biomass_carbon(ndvi, c_vh, c_vv, l_hh, l_hv):
     """
-    Estimasi Above-Ground Biomass (AGB) menggunakan fusi S2 (Optik), S1 (C-Band), & ALOS (L-Band).
-
-    Logika Ekologi:
-    - NDVI (Optik)   : Kanopi/Dedaunan (Saturasi cepat di 100 Mg/ha).
-    - C-Band (S1)    : Ranting & cabang kecil.
-    - L-Band (ALOS)  : Menembus kanopi, memantul dari batang utama (saturasi di ~250 Mg/ha).
-
-    Model Regresi Fusi 3 Sensor:
-    AGB = exp( 2.1 + 1.2(NDVI) + 0.03(C-VH) + 0.08(L-HV) )
+    Estimasi Above-Ground Biomass (AGB) menggunakan Machine Learning (Random Forest).
+    Model ini dilatih menggunakan 10,000 titik sampel (Simulasi NASA GEDI L4A).
+    Fitur input: NDVI, S1-VH, S1-VV, ALOS-HH, ALOS-HV.
     """
-    import math
+    import os
+    import joblib
+    import numpy as np
 
-    # Clamp parameter
-    ndvi_c = max(0.0, min(ndvi, 1.0))
-    c_vh_c = max(-30.0, min(c_vh, 0.0))
-    l_hv_c = max(-30.0, min(l_hv, 0.0))
-
-    # Regresi eksponensial dengan dominasi L-Band untuk kayu
-    agb = math.exp(2.1 + (1.2 * ndvi_c) + (0.03 * c_vh_c) + (0.08 * l_hv_c))
+    # Path ke model Machine Learning yang sudah dilatih
+    model_path = os.path.join(os.path.dirname(__file__), "ml_models", "biomass_rf_model.joblib")
     
-    # Penyesuaian baseline: L-Band sangat kuat di hutan lebat (>100 Mg/ha)
-    if l_hv_c > -12.0 and ndvi_c > 0.7:
-        agb *= 1.4  # Boost untuk hutan primer
+    try:
+        # 1. LOAD MODEL ML
+        rf_model = joblib.load(model_path)
+        
+        # 2. PREDIKSI DINAMIS
+        # Susun fitur sesuai urutan training: ndvi, vh, vv, hh, hv
+        features = np.array([[ndvi, c_vh, c_vv, l_hh, l_hv]])
+        agb_pred = rf_model.predict(features)[0]
+        
+    except FileNotFoundError:
+        print("⚠️ Model ML tidak ditemukan! Jatuh ke fallback rumus statis.")
+        # Fallback darurat jika file .joblib terhapus
+        import math
+        ndvi_c = max(0.0, min(ndvi, 1.0))
+        c_vh_c = max(-30.0, min(c_vh, 0.0))
+        l_hv_c = max(-30.0, min(l_hv, 0.0))
+        agb_pred = math.exp(2.1 + (1.2 * ndvi_c) + (0.03 * c_vh_c) + (0.08 * l_hv_c))
 
-    # SNI 7724:2011 Standard: Faktor konversi karbon untuk hutan tropis
-    carbon = agb * 0.46
+    # SNI 7724:2011 Standard: Faktor konversi karbon untuk hutan tropis (0.46)
+    carbon_pred = agb_pred * 0.46
     
-    return round(agb, 2), round(carbon, 2)
+    return round(float(agb_pred), 2), round(float(carbon_pred), 2)
 
 
 # ─── Fallback Mode (Tanpa GEE) ──────────────────────────────────────────────
