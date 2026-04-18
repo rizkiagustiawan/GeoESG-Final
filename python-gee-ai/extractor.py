@@ -153,6 +153,51 @@ def extract_alos_gee(region_geometry, site_id):
     )
 
 
+def extract_historical_trend(region_geometry):
+    """
+    Ekstraksi Analisis Mesin Waktu (Time-Series) 5 Tahun Terakhir.
+    Menghitung laju perubahan (slope) NDVI untuk mendeteksi Deforestasi / Reforestasi.
+    """
+    import ee
+    geom = ee.Geometry(region_geometry)
+    years = ee.List.sequence(2021, 2025)
+
+    def get_yearly_ndvi(y):
+        start = ee.Date.fromYMD(y, 1, 1)
+        end = ee.Date.fromYMD(y, 12, 31)
+        s2 = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED') \
+            .filterBounds(geom) \
+            .filterDate(start, end) \
+            .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)) \
+            .median()
+        ndvi = s2.normalizedDifference(['B8', 'B4']).rename('NDVI')
+        year_img = ee.Image.constant(y).toFloat().rename('year')
+        return ndvi.addBands(year_img).set('system:time_start', start.millis())
+
+    yearly_col = ee.ImageCollection.fromImages(years.map(get_yearly_ndvi))
+    
+    # Reducer linearFit membutuhkan independent variable (year) dan dependent (NDVI)
+    trend = yearly_col.select(['year', 'NDVI']).reduce(ee.Reducer.linearFit())
+    
+    stats = trend.select('scale').reduceRegion(
+        reducer=ee.Reducer.mean(), 
+        geometry=geom, 
+        scale=100, 
+        maxPixels=1e9
+    )
+    slope = stats.get('scale').getInfo()
+    slope_val = round(slope, 4) if slope is not None else 0.0
+
+    if slope_val < -0.005:
+        status = "Deforestasi Aktif (Degradasi)"
+    elif slope_val > 0.005:
+        status = "Reforestasi Aktif (Sequestrasi)"
+    else:
+        status = "Hutan Stabil"
+
+    return slope_val, status
+
+
 def estimate_biomass_carbon(ndvi, c_vh, c_vv, l_hh, l_hv):
     """
     Estimasi Above-Ground Biomass (AGB) menggunakan Machine Learning (Random Forest).
@@ -210,6 +255,14 @@ def extract_fallback(site_id, ground_truth_biomass=150.0):
     simulated_sat_biomass = ground_truth_biomass * random.uniform(0.85, 1.15)
     biomass = round(simulated_sat_biomass, 2)
     carbon = round(biomass * 0.46, 2)
+    
+    slope_val = round(random.uniform(-0.02, 0.02), 4)
+    if slope_val < -0.005:
+        status = "Deforestasi Aktif (Degradasi)"
+    elif slope_val > 0.005:
+        status = "Reforestasi Aktif (Sequestrasi)"
+    else:
+        status = "Hutan Stabil"
 
     return {
         "satellite_ndvi_90": sat_ndvi,
@@ -217,6 +270,8 @@ def extract_fallback(site_id, ground_truth_biomass=150.0):
         "radar_vv_db": vv,
         "alos_hh_db": l_hh,
         "alos_hv_db": l_hv,
+        "historical_trend_slope": slope_val,
+        "ecological_status": status,
         "biomass_data_source": "Fallback (Simulated)",
         "estimated_biomass": biomass,
         "estimated_carbon": carbon,
@@ -280,8 +335,12 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
             sat_ndvi = extract_ndvi_gee(region_geojson, site_id)
             c_vh, c_vv = extract_radar_gee(region_geojson, site_id)
             l_hh, l_hv = extract_alos_gee(region_geojson, site_id)
+            
+            print(f"  ⏳ [{site_id}] Menganalisis Time-Series 5 Tahun Terakhir...")
+            slope, eco_status = extract_historical_trend(region_geojson)
+            
             biomass, carbon = estimate_biomass_carbon(sat_ndvi, c_vh, c_vv, l_hh, l_hv)
-            source = "REAL — Fusi 3 Sensor (Sentinel 1, 2, & ALOS PALSAR)"
+            source = "REAL — Fusi 3 Sensor & Analisis Time-Series"
         except Exception as e:
             print(f"  ⚠️  [{site_id}] GEE gagal ({e}), fallback ke simulasi...")
             fallback = extract_fallback(site_id, ground_truth_biomass)
@@ -290,6 +349,8 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
             c_vv = fallback["radar_vv_db"]
             l_hh = fallback["alos_hh_db"]
             l_hv = fallback["alos_hv_db"]
+            slope = fallback["historical_trend_slope"]
+            eco_status = fallback["ecological_status"]
             biomass = fallback["estimated_biomass"]
             carbon = fallback["estimated_carbon"]
             source = "Fallback (GEE Error)"
@@ -301,6 +362,8 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
         c_vv = fallback["radar_vv_db"]
         l_hh = fallback["alos_hh_db"]
         l_hv = fallback["alos_hv_db"]
+        slope = fallback["historical_trend_slope"]
+        eco_status = fallback["ecological_status"]
         biomass = fallback["estimated_biomass"]
         carbon = fallback["estimated_carbon"]
         source = "Simulasi (GEE Offline)"
@@ -315,6 +378,8 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
         "radar_vv_db": c_vv,
         "alos_hh_db": l_hh,
         "alos_hv_db": l_hv,
+        "historical_trend_slope": slope,
+        "ecological_status": eco_status,
         "biomass_data_source": source,
         "ground_truth_10": ground_truth_biomass,
         "error_margin": error_margin,
