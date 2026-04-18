@@ -1,0 +1,6 @@
+venv/
+.git/
+rust-esg-engine/target/
+shared_data/geoesg.db
+**/*.pyc
+.DS_Store

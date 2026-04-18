@@ -1,0 +1,10 @@
+[
+  {
+    "site_id": "Sumbawa Barat",
+    "gri_304_biodiversity_score": "0.73 (Adjusted NDVI)",
+    "data_integrity_flag": "AUDIT_PASS: High Consistency",
+    "final_trust_score": 0.7256,
+    "estimated_biomass": 110.14,
+    "estimated_carbon": 51.76
+  }
+]

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GeoESG Command Center v2</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --accent: #38bdf8;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: #f8fafc;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 350px;
+            background: var(--card);
+            border-right: 1px solid #334155;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .main-content {
+            flex: 1;
+            display: grid;
+            grid-template-rows: 1fr 300px;
+            padding: 20px;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        #map {
+            height: 100%;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            z-index: 1;
+        }
+
+        .btn {
+            width: 100%;
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .btn:hover {
+            opacity: 0.8;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #64748b;
+            cursor: wait;
+        }
+
+        select,
+        input {
+            width: 90%;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            background: var(--bg);
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        canvas {
+            max-height: 200px;
+        }
+
+        #statusText {
+            font-size: 14px;
+            text-align: center;
+            margin-top: 10px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="sidebar">
+        <h2 style="color: var(--accent); margin: 0;">🌍 GeoESG A.E.C.O</h2>
+        <p style="font-size: 0.8rem; color: #94a3b8; margin-top:5px;">Sumbawa Monitoring Station</p>
+
+        <div class="card">
+            <label>📍 Pilih Wilayah (Auto-Load)</label>
+            <select id="siteSelector" onchange="focusMap()"></select>
+
+            <label style="display:block; margin-top:15px;">🔬 Ground Truth NDVI</label>
+            <input type="number" id="gtInput" value="0.71" step="0.01">
+
+            <button class="btn" id="auditBtn" style="margin-top:20px;" onclick="generateReport()">MULAI AUDIT
+                AI</button>
+            <span id="statusText" style="color: #94a3b8;">Sistem Siap.</span>
+        </div>
+
+        <div class="card">
+            <h4 style="margin-top:0;">📊 Analitik NDVI Terakhir</h4>
+            <canvas id="auditChart"></canvas>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div id="map"></div>
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+            <div class="card" id="reportView" style="overflow-y: auto;">
+                <h4 style="margin:0 0 10px 0; color:var(--accent);">📄 Hasil Audit R-Markdown</h4>
+                <div id="reportContainer" style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">Menunggu data...
+                </div>
+            </div>
+            <div class="card" style="overflow-y: auto;">
+                <h4 style="margin:0 0 10px 0; color:var(--success);">🕒 History Log (SQLite)</h4>
+                <div id="historyLog" style="font-size: 0.85rem; color: #94a3b8;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map').setView([-8.6, 117.5], 8);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+
+        let geojsonLayer;
+        const siteData = {};
+        let regionCounter = 0;
+
+        // Inisialisasi Grafik
+        let myChart;
+        function initChart(sat = 0, ground = 0) {
+            const ctx = document.getElementById('auditChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Satelit (GEE)', 'Lapangan (In-Situ)'],
+                    datasets: [{
+                        label: 'Skor NDVI',
+                        data: [sat, ground],
+                        backgroundColor: ['#38bdf8', '#10b981'],
+                        borderRadius: 4
+                    }]
+                },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 1 } } }
+            });
+        }
+        initChart();
+
+        // Load Poligon NTB
+        async function loadRegionalBorders() {
+            try {
+                const response = await fetch('/api/regional-borders');
+                const cleanGeoJson = await response.json();
+                const selector = document.getElementById('siteSelector');
+
+                geojsonLayer = L.geoJSON(cleanGeoJson, {
+                    style: function () { return { color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.2, weight: 2 }; },
+                    onEachFeature: function (feature, layer) {
+                        const props = feature.properties;
+                        const regionName = props.NAMOBJ || props.WADMKC || props.WADMKK || props.KABUPATEN || props.Kecamatan || "Wilayah_" + regionCounter;
+                        siteData[regionName] = { poly: layer };
+                        layer.bindPopup(`<b>${regionName}</b><br>Belum diaudit.`);
+
+                        const option = document.createElement("option");
+                        option.value = regionName; option.text = regionName;
+                        selector.appendChild(option);
+                        regionCounter++;
+                    }
+                }).addTo(map);
+                map.fitBounds(geojsonLayer.getBounds());
+            } catch (error) {
+                console.error("Gagal memuat peta:", error);
+            }
+        }
+
+        function focusMap() {
+            const selectedSite = document.getElementById('siteSelector').value;
+            if (siteData[selectedSite]) {
+                const layer = siteData[selectedSite].poly;
+                map.flyToBounds(layer.getBounds(), { duration: 1.5 });
+                layer.openPopup();
+            }
+        }
+
+        // Load History SQLite
+        async function updateHistory() {
+            try {
+                const res = await fetch('/api/audit-history');
+                const data = await res.json();
+                const log = document.getElementById('historyLog');
+                if (data.length === 0) return log.innerHTML = "Belum ada log.";
+
+                log.innerHTML = data.map(h => `
+                    <div style="border-bottom: 1px solid #334155; padding: 8px 0;">
+                        <b style="color:#f8fafc;">${h.site_id}</b><br>
+                        NDVI: Sat(${h.sat_ndvi}) vs Gt(${h.ground_ndvi})<br>
+                        Status: <span style="color:${h.status.includes('PASS') ? '#10b981' : '#ef4444'}">${h.status.includes('PASS') ? 'PASS' : 'FAIL'}</span>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        // Jalankan Eksekusi
+        async function generateReport() {
+            const selectedSite = document.getElementById('siteSelector').value;
+            const gtValue = parseFloat(document.getElementById('gtInput').value);
+            const btn = document.getElementById('auditBtn');
+            const statusText = document.getElementById('statusText');
+
+            if (!selectedSite) return alert("Peta belum termuat!");
+
+            btn.disabled = true; btn.innerText = "Mengeksekusi AI...";
+            statusText.innerHTML = "<span style='color: #f59e0b;'>⏳ Menghubungi Satelit...</span>";
+
+            try {
+                const response = await fetch('/generate-esg-report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ site_id: selectedSite, ground_truth_ndvi: gtValue })
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    statusText.innerHTML = `<span style="color:#10b981;">✅ Audit Sukses!</span>`;
+
+                    // Render Laporan
+                    const formattedReport = data.report_markdown.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+                    document.getElementById('reportContainer').innerHTML = formattedReport;
+
+                    // Update Grafik
+                    initChart(data.metrics.satellite_ndvi_90, gtValue);
+
+                    // Update Peta
+                    const layer = siteData[selectedSite].poly;
+                    if (data.metrics.data_integrity_flag.includes('PASS')) {
+                        layer.setStyle({ color: '#10b981', fillColor: '#10b981', fillOpacity: 0.6 });
+                        layer.setPopupContent(`<b>${selectedSite}</b><br><span style="color:green;">✅ LULUS AUDIT</span>`).openPopup();
+                    } else {
+                        layer.setStyle({ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.6 });
+                        layer.setPopupContent(`<b>${selectedSite}</b><br><span style="color:red;">❌ RISIKO GREENWASHING</span>`).openPopup();
+                    }
+
+                    // Refresh Log
+                    updateHistory();
+                }
+            } catch (error) {
+                statusText.innerHTML = `<span style="color:#ef4444;">❌ Server Error.</span>`;
+            } finally {
+                btn.disabled = false; btn.innerText = "MULAI AUDIT AI";
+            }
+        }
+
+        // Panggil saat halaman dimuat
+        loadRegionalBorders();
+        updateHistory();
+    </script>
+</body>
+
+</html>

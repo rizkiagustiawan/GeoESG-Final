@@ -1,0 +1,14 @@
+[
+    {
+        "site_id": "Sumbawa Barat",
+        "satellite_ndvi_90": 0.734,
+        "radar_vh_db": -14.016,
+        "radar_vv_db": -7.405,
+        "biomass_data_source": "Optik (Sentinel-2)",
+        "ground_truth_10": 0.65,
+        "error_margin": 0.084,
+        "estimated_biomass": 110.14,
+        "estimated_carbon": 51.76,
+        "timestamp": "2026-04-18T09:32:19.475612"
+    }
+]
