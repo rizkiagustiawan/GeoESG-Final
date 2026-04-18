@@ -264,6 +264,12 @@ def extract_fallback(site_id, ground_truth_biomass=150.0):
     else:
         status = "Hutan Stabil"
 
+    # Simulasi Tree Count Fallback
+    from vision_unet_model import TreeVisionUNet
+    vision_ai = TreeVisionUNet()
+    img_path = vision_ai.generate_synthetic_airbus_imagery(site_id, density=(ground_truth_biomass/300.0))
+    tree_count, _ = vision_ai.predict_tree_crowns(img_path, site_id)
+
     return {
         "satellite_ndvi_90": sat_ndvi,
         "radar_vh_db": vh,
@@ -272,6 +278,7 @@ def extract_fallback(site_id, ground_truth_biomass=150.0):
         "alos_hv_db": l_hv,
         "historical_trend_slope": slope_val,
         "ecological_status": status,
+        "vision_tree_count": tree_count,
         "biomass_data_source": "Fallback (Simulated)",
         "estimated_biomass": biomass,
         "estimated_carbon": carbon,
@@ -339,8 +346,18 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
             print(f"  ⏳ [{site_id}] Menganalisis Time-Series 5 Tahun Terakhir...")
             slope, eco_status = extract_historical_trend(region_geojson)
             
+            print(f"  👁️ [{site_id}] Menganalisis Tree Crowns via Vision AI (Resolusi 0.5m)...")
+            try:
+                from vision_unet_model import TreeVisionUNet
+                vision_ai = TreeVisionUNet()
+                img_path = vision_ai.generate_synthetic_airbus_imagery(site_id, density=(ground_truth_biomass/300.0))
+                tree_count, _ = vision_ai.predict_tree_crowns(img_path, site_id)
+            except Exception as e:
+                print(f"Vision Error: {e}")
+                tree_count = 0
+
             biomass, carbon = estimate_biomass_carbon(sat_ndvi, c_vh, c_vv, l_hh, l_hv)
-            source = "REAL — Fusi 3 Sensor & Analisis Time-Series"
+            source = "REAL — Fusi 3 Sensor, Time-Series & Vision AI"
         except Exception as e:
             print(f"  ⚠️  [{site_id}] GEE gagal ({e}), fallback ke simulasi...")
             fallback = extract_fallback(site_id, ground_truth_biomass)
@@ -351,6 +368,7 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
             l_hv = fallback["alos_hv_db"]
             slope = fallback["historical_trend_slope"]
             eco_status = fallback["ecological_status"]
+            tree_count = fallback["vision_tree_count"]
             biomass = fallback["estimated_biomass"]
             carbon = fallback["estimated_carbon"]
             source = "Fallback (GEE Error)"
@@ -364,6 +382,7 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
         l_hv = fallback["alos_hv_db"]
         slope = fallback["historical_trend_slope"]
         eco_status = fallback["ecological_status"]
+        tree_count = fallback["vision_tree_count"]
         biomass = fallback["estimated_biomass"]
         carbon = fallback["estimated_carbon"]
         source = "Simulasi (GEE Offline)"
@@ -380,6 +399,7 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
         "alos_hv_db": l_hv,
         "historical_trend_slope": slope,
         "ecological_status": eco_status,
+        "vision_tree_count": tree_count,
         "biomass_data_source": source,
         "ground_truth_10": ground_truth_biomass,
         "error_margin": error_margin,
