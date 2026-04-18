@@ -19,6 +19,32 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: geoesg-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  geoesg-worker:
+    build: .
+    image: geoesg-server:v2.2
+    container_name: geoesg-worker
+    command: ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info", "--pool=threads"]
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - geoesg-data:/app/shared_data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://geoesg_user:geoesg_password@db:5432/geoesg_spatial
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   geoesg-server:
     build: .
     image: geoesg-server:v2.2
@@ -31,9 +57,13 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://geoesg_user:geoesg_password@db:5432/geoesg_spatial
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s

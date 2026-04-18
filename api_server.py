@@ -28,6 +28,9 @@ import threading
 from functools import partial
 from typing import List, Optional
 
+from celery.result import AsyncResult
+from worker import celery_app, run_pipeline_task
+
 from fastapi import FastAPI, HTTPException, Request, Depends, status
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -429,7 +432,7 @@ async def generate_esg_report(req: AuditRequest):
 # 4. Audit History
 @app.get("/api/audit-history")
 async def get_audit_history():
-    """Mengembalikan 50 log audit terakhir dari SQLite."""
+    """Mengembalikan 50 log audit terakhir dari SQLite/PostgreSQL."""
     try:
         conn = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -440,21 +443,12 @@ async def get_audit_history():
         cursor.close()
         conn.close()
 
-        history = [
-            {
-                "id": row["id"],
-                "site_id": row["site_id"],
-                "sat_ndvi": row["sat_ndvi"],
-                "ground_biomass": row["ground_biomass"],
-                "trust_score": row["trust_score"],
-                "biomass": row["biomass"],
-                "carbon": row["carbon"],
-                "status": row["status"],
-                "timestamp": row["timestamp"],
-            }
-            for row in rows
-        ]
-        return JSONResponse(content=history)
+        # Konversi datetime menjadi string (ISO format) untuk JSON
+        for row in rows:
+            if isinstance(row["timestamp"], datetime.datetime):
+                row["timestamp"] = row["timestamp"].isoformat()
+
+        return JSONResponse(content=rows)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -462,12 +456,33 @@ async def get_audit_history():
         )
 
 
-# 5. Batch Multi-Site Audit
+# 5. Cek Status Task Asinkron (Engineering Max)
+@app.get("/api/task-status/{task_id}")
+async def get_task_status(task_id: str):
+    """Mengecek status proses background Celery."""
+    task_result = AsyncResult(task_id, app=celery_app)
+    
+    response = {
+        "task_id": task_id,
+        "status": task_result.status,
+    }
+    
+    if task_result.status == 'SUCCESS':
+        response["result"] = task_result.result
+    elif task_result.status == 'PROGRESS':
+        response["meta"] = task_result.info
+    elif task_result.status == 'FAILURE':
+        response["error"] = str(task_result.result)
+        
+    return JSONResponse(content=response)
+
+
+# 6. Batch Multi-Site Audit (ASYNCHRONOUS MAX)
 @app.post("/generate-esg-batch", dependencies=[Depends(verify_api_key)])
 async def generate_esg_batch(req: BatchAuditRequest):
     """
-    Menjalankan audit ESG untuk beberapa wilayah sekaligus.
-    Pipeline dijalankan sekali untuk semua site.
+    Menjalankan audit ESG untuk ribuan wilayah sekaligus secara ASINKRON.
+    Server akan langsung merespons dengan Task ID (0.1 detik).
     """
     try:
         user_inputs = [
@@ -475,58 +490,19 @@ async def generate_esg_batch(req: BatchAuditRequest):
             for s in req.sites
         ]
 
-        raw_data, esg_metrics = await run_pipeline(user_inputs)
+        # 🚀 Kirim ke Message Broker (Redis) -> Celery Worker
+        task = run_pipeline_task.delay(user_inputs)
 
-        results = []
-        conn = get_db()
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content={
+                "status": "accepted",
+                "message": f"Permintaan audit {len(user_inputs)} titik diterima. Memproses di background.",
+                "task_id": task.id,
+                "check_status_url": f"/api/task-status/{task.id}"
+            }
+        )
 
-        for site_req in req.sites:
-            site_raw = next(
-                (r for r in raw_data if r["site_id"] == site_req.site_id), None
-            )
-            site_esg = next(
-                (m for m in esg_metrics if m["site_id"] == site_req.site_id), None
-            )
-
-            if not site_raw or not site_esg:
-                results.append({
-                    "site_id": site_req.site_id,
-                    "status": "error",
-                    "detail": "Data tidak ditemukan setelah pipeline",
-                })
-                continue
-
-            is_pass = "PASS" in site_esg.get("data_integrity_flag", "")
-
-            log_audit(conn, site_req.site_id, site_raw, site_esg, site_req.ground_truth_biomass)
-
-            results.append({
-                "site_id": site_req.site_id,
-                "status": "success",
-                "metrics": build_metrics_dict(site_raw, site_esg, site_req.ground_truth_biomass),
-                "audit_passed": is_pass,
-            })
-
-        conn.commit()
-        conn.close()
-
-        passed = sum(1 for r in results if r.get("audit_passed"))
-        failed = sum(1 for r in results if r.get("status") == "success" and not r.get("audit_passed"))
-        errors = sum(1 for r in results if r.get("status") == "error")
-
-        return JSONResponse(content={
-            "status": "success",
-            "summary": {
-                "total_sites": len(req.sites),
-                "passed": passed,
-                "failed": failed,
-                "errors": errors,
-            },
-            "results": results,
-        })
-
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Batch pipeline timeout.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch error: {str(e)}")
 
