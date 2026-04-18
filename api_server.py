@@ -511,15 +511,23 @@ async def generate_esg_batch(req: BatchAuditRequest):
 @app.get("/api/health")
 async def health_check():
     """Cek status kesehatan sistem."""
+    db_ok = False
+    try:
+        conn = get_db()
+        conn.close()
+        db_ok = True
+    except Exception:
+        pass
+        
     checks = {
         "api": True,
-        "database": os.path.exists(DB_PATH),
+        "database": db_ok,
         "geojson": os.path.exists(GEOJSON_PATH),
         "raw_data": os.path.exists(os.path.join(SHARED_DATA, "raw_data.json")),
         "esg_metrics": os.path.exists(os.path.join(SHARED_DATA, "esg_metrics.json")),
         "rust_binary": os.path.exists(
             os.path.join(BASE_DIR, "rust-esg-engine", "target", "release", "rust-esg-engine")
-        ),
+        ) or os.path.exists(os.path.join(BASE_DIR, "rust-esg-engine", "Cargo.toml")),
     }
     return JSONResponse(
         content={

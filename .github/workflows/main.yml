@@ -9,6 +9,25 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgis/postgis:15-3.3
+        env:
+          POSTGRES_USER: geoesg_user
+          POSTGRES_PASSWORD: geoesg_password
+          POSTGRES_DB: geoesg_spatial
+        options: >-
+          --health-cmd "pg_isready -U geoesg_user -d geoesg_spatial"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+          
     steps:
     - uses: actions/checkout@v4
 
@@ -43,4 +62,8 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run pytest
+      env:
+        DATABASE_URL: postgresql://geoesg_user:geoesg_password@localhost:5432/geoesg_spatial
+        CELERY_BROKER_URL: redis://localhost:6379/0
+        CELERY_RESULT_BACKEND: redis://localhost:6379/0
       run: pytest test_api.py -v

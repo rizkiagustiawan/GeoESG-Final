@@ -69,6 +69,6 @@ def test_batch_audit_valid_api_key():
     }
     headers = {"X-API-Key": "geoesg-secret-key-2026"}
     response = client.post("/generate-esg-batch", json=payload, headers=headers)
-    assert response.status_code == 200
-    assert response.json()["status"] == "success"
-    assert len(response.json()["results"]) == 1
+    assert response.status_code == 202
+    assert response.json()["status"] == "accepted"
+    assert "task_id" in response.json()
