@@ -15,7 +15,8 @@ Endpoints:
 
 import json
 import os
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import subprocess
 import datetime
 import tempfile
@@ -36,8 +37,14 @@ from pydantic import BaseModel, Field
 # ─── Config ──────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SHARED_DATA = os.path.join(BASE_DIR, "shared_data")
-DB_PATH = os.path.join(SHARED_DATA, "geoesg.db")
 GEOJSON_PATH = os.path.join(SHARED_DATA, "batas_ntb.geojson")
+
+# Konfigurasi PostgreSQL / PostGIS
+# Fallback ke localhost jika dijalankan di luar docker
+DB_URL = os.getenv(
+    "DATABASE_URL", 
+    "postgresql://geoesg_user:geoesg_password@localhost:5432/geoesg_spatial"
+)
 
 app = FastAPI(
     title="GeoESG A.E.C.O API",
@@ -57,28 +64,40 @@ app.add_middleware(
 
 # ─── Database Setup ──────────────────────────────────────────────────────────
 def init_db():
-    """Inisialisasi tabel audit_logs di SQLite."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""CREATE TABLE IF NOT EXISTS audit_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        site_id TEXT,
-        sat_ndvi REAL,
-        ground_biomass REAL,
-        trust_score REAL,
-        biomass REAL,
-        carbon REAL,
-        status TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    )""")
-    conn.commit()
-    conn.close()
+    """Inisialisasi tabel audit_logs di PostgreSQL + PostGIS."""
+    try:
+        conn = psycopg2.connect(DB_URL)
+        conn.autocommit = True
+        cursor = conn.cursor()
+        
+        # Aktifkan ekstensi spasial
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS postgis;")
+        
+        # Buat tabel enterprise dengan kolom GEOMETRY
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id SERIAL PRIMARY KEY,
+                site_id TEXT,
+                sat_ndvi REAL,
+                ground_biomass REAL,
+                trust_score REAL,
+                biomass REAL,
+                carbon REAL,
+                status TEXT,
+                geom GEOMETRY(Polygon, 4326),  -- [BARU] Kolom Spasial PostGIS
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.close()
+        conn.close()
+        print("✅ PostgreSQL + PostGIS berhasil diinisialisasi.")
+    except Exception as e:
+        print(f"⚠️ Gagal koneksi ke PostgreSQL: {e}. Pastikan docker-compose up db sudah jalan.")
 
 
 def get_db():
     """Buat koneksi database baru (per-request)."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return psycopg2.connect(DB_URL)
 
 
 init_db()
@@ -306,11 +325,12 @@ def build_metrics_dict(site_raw, site_esg, ground_truth_biomass):
 
 
 def log_audit(conn, site_id, site_raw, site_esg, ground_truth_biomass):
-    """Insert audit log ke SQLite."""
-    conn.execute(
+    """Insert audit log ke PostgreSQL."""
+    cursor = conn.cursor()
+    cursor.execute(
         """INSERT INTO audit_logs
            (site_id, sat_ndvi, ground_biomass, trust_score, biomass, carbon, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
         (
             site_id,
             site_raw.get("satellite_ndvi_90"),
@@ -321,6 +341,7 @@ def log_audit(conn, site_id, site_raw, site_esg, ground_truth_biomass):
             site_esg.get("data_integrity_flag"),
         ),
     )
+    cursor.close()
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -411,9 +432,12 @@ async def get_audit_history():
     """Mengembalikan 50 log audit terakhir dari SQLite."""
     try:
         conn = get_db()
-        rows = conn.execute(
-            "SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 50"
-        ).fetchall()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(
+            "SELECT id, site_id, sat_ndvi, ground_biomass, trust_score, biomass, carbon, status, timestamp FROM audit_logs ORDER BY timestamp DESC LIMIT 50"
+        )
+        rows = cursor.fetchall()
+        cursor.close()
         conn.close()
 
         history = [

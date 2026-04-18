@@ -1,6 +1,24 @@
 version: "3.9"
 
 services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: geoesg-postgis
+    environment:
+      POSTGRES_USER: geoesg_user
+      POSTGRES_PASSWORD: geoesg_password
+      POSTGRES_DB: geoesg_spatial
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geoesg_user -d geoesg_spatial"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   geoesg-server:
     build: .
     image: geoesg-server:v2.2
@@ -12,6 +30,10 @@ services:
       - geoesg-data:/app/shared_data
     environment:
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://geoesg_user:geoesg_password@db:5432/geoesg_spatial
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -34,4 +56,6 @@ services:
 
 volumes:
   geoesg-data:
+    driver: local
+  postgis-data:
     driver: local
