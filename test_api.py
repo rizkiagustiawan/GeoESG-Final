@@ -85,7 +85,8 @@ def test_get_map_not_found():
 
 def test_get_map_path_traversal():
     """Ensure path traversal attacks are blocked."""
-    response = client.get("/api/maps/../../etc/passwd")
+    # Use URL encoding to bypass client-side normalization and reach the API handler
+    response = client.get("/api/maps/..%2f..%2fetc%2fpasswd")
     assert response.status_code == 400
     assert "tidak valid" in response.json()["detail"]
 

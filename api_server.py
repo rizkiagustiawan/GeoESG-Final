@@ -634,7 +634,7 @@ async def list_maps():
 
 
 # 10. Download Specific Map
-@app.get("/api/maps/{filename}")
+@app.get("/api/maps/{filename:path}")
 async def get_map(filename: str):
     """Download peta spesifik berdasarkan nama file."""
     # Validasi path traversal: hanya izinkan nama file PNG sederhana

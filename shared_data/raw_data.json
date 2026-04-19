@@ -1,26 +1,26 @@
 [
     {
-        "site_id": "Sumbawa Barat",
-        "satellite_ndvi_90": 0.728,
-        "radar_vh_db": -14.389,
-        "radar_vv_db": -7.767,
-        "alos_hh_db": -7.552,
-        "alos_hv_db": -12.649,
-        "historical_trend_slope": -0.0043,
-        "ecological_status": "Hutan Stabil",
+        "site_id": "Lombok Barat",
+        "satellite_ndvi_90": 0.545,
+        "radar_vh_db": -15.122,
+        "radar_vv_db": -8.499,
+        "alos_hh_db": -7.744,
+        "alos_hv_db": -13.72,
+        "historical_trend_slope": -0.0105,
+        "ecological_status": "Deforestasi Aktif (Degradasi)",
         "historical_ndvi_series": {
-            "2021": 0.769,
-            "2022": 0.773,
-            "2023": 0.714,
-            "2024": 0.722,
-            "2025": 0.773
+            "2021": 0.635,
+            "2022": 0.628,
+            "2023": 0.56,
+            "2024": 0.583,
+            "2025": 0.605
         },
-        "vision_tree_count": 45,
+        "vision_tree_count": 178,
         "biomass_data_source": "REAL \u2014 Fusi 3 Sensor, Time-Series & Vision AI",
-        "ground_truth_10": 12.0,
-        "error_margin": 4.594,
-        "estimated_biomass": 67.13,
-        "estimated_carbon": 30.88,
-        "timestamp": "2026-04-20T03:46:00.565813"
+        "ground_truth_10": 100.0,
+        "error_margin": 0.617,
+        "estimated_biomass": 38.26,
+        "estimated_carbon": 17.6,
+        "timestamp": "2026-04-20T06:21:28.516151"
     }
 ]

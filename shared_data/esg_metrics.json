@@ -1,14 +1,14 @@
 [
   {
-    "site_id": "Sumbawa Barat",
-    "relative_error_pct": 459.4,
-    "bias_mg_ha": 55.13,
-    "accuracy_pct": 0.0,
+    "site_id": "Lombok Barat",
+    "relative_error_pct": 61.7,
+    "bias_mg_ha": -61.74,
+    "accuracy_pct": 38.3,
     "ipcc_tier": "Unacceptable",
-    "data_integrity_flag": "AUDIT_FAIL: RE=459.4% > 30% — Melebihi batas toleransi IPCC. Kalibrasi ulang diperlukan.",
-    "gri_304_biodiversity_score": "Akurasi biomassa 0.0% (RE=459.4%, Bias=+55.1 Mg/ha) — Tier: Unacceptable",
-    "final_trust_score": 0.0,
-    "estimated_biomass": 67.13,
-    "estimated_carbon": 30.88
+    "data_integrity_flag": "AUDIT_FAIL: RE=61.7% > 30% — Melebihi batas toleransi IPCC. Kalibrasi ulang diperlukan.",
+    "gri_304_biodiversity_score": "Akurasi biomassa 38.3% (RE=61.7%, Bias=-61.7 Mg/ha) — Tier: Unacceptable",
+    "final_trust_score": 0.383,
+    "estimated_biomass": 38.26,
+    "estimated_carbon": 17.6
   }
 ]
