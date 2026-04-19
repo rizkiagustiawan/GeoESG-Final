@@ -28,14 +28,19 @@ import threading
 from functools import partial
 from typing import List, Optional
 
-from celery.result import AsyncResult
-from worker import celery_app, run_pipeline_task
-
-from fastapi import FastAPI, HTTPException, Request, Depends, status
+from fastapi import FastAPI, HTTPException, Request, Depends, status, Body
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
+
+# PDF Generator
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), "python-gee-ai"))
+try:
+    from pdf_generator import generate_pdf_report
+except ImportError:
+    generate_pdf_report = None
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -119,10 +124,11 @@ class BatchAuditRequest(BaseModel):
 # ─── Security & Rate Limiting ────────────────────────────────────────────────
 API_KEY_NAME = "X-API-Key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+API_KEY_SECRET = os.getenv("GEOESG_API_KEY", "geoesg-secret-key-2026")
 
 def verify_api_key(api_key: str = Depends(api_key_header)):
-    """Verifikasi API Key statis untuk endpoint sensitif/batch."""
-    if api_key != "geoesg-secret-key-2026":
+    """Verifikasi API Key untuk endpoint sensitif/batch."""
+    if api_key != API_KEY_SECRET:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API Key",
@@ -134,6 +140,12 @@ def rate_limit(request: Request):
     """Rate limiter sederhana berbasis IP (Maks 5 request / menit)."""
     client_ip = request.client.host if request.client else "unknown"
     current_time = time.time()
+    
+    # Cleanup: hapus entries lama (>60s) untuk mencegah memory leak
+    stale_ips = [ip for ip, times in RATE_LIMIT_DB.items()
+                 if all(current_time - t > 60 for t in times)]
+    for ip in stale_ips:
+        del RATE_LIMIT_DB[ip]
     
     if client_ip in RATE_LIMIT_DB:
         requests = [req_time for req_time in RATE_LIMIT_DB[client_ip] if current_time - req_time < 60]
@@ -185,8 +197,10 @@ def _run_pipeline_sync(user_inputs: list) -> tuple:
         env["GEOESG_GEOJSON_PATH"] = os.path.join(work_dir, "batas_ntb.geojson")
 
         extractor_path = os.path.join(BASE_DIR, "python-gee-ai", "extractor.py")
+        venv_python = os.path.join(BASE_DIR, "venv", "bin", "python3")
+        python_exe = venv_python if os.path.exists(venv_python) else "python3"
         result_py = subprocess.run(
-            ["python3", extractor_path],
+            [python_exe, extractor_path],
             capture_output=True,
             text=True,
             timeout=120,
@@ -267,47 +281,49 @@ def build_report_markdown(site_id, site_raw, site_esg, ground_truth_biomass):
     status_text = (
         "AUDIT LULUS — Konsistensi Tinggi"
         if is_pass
-        else "AUDIT GAGAL — Risiko Greenwashing Terdeteksi"
+        else "AUDIT GAGAL — Akurasi Tidak Memenuhi Standar IPCC"
     )
 
     return f"""# GeoESG Audit Report: {site_id}
 
 > **Waktu Audit:** {datetime.datetime.now().strftime('%d %B %Y %H:%M:%S')}
-> **Metodologi:** Sensor Fusion (Optik + SAR) & Validasi Statistik In-Situ
-> **Standar:** GRI 304 (Biodiversity) & SNI 7724:2011 (Carbon Accounting)
+> **Metodologi:** Random Forest Sensor Fusion (Optik + SAR) — Mitchard et al. (2012)
+> **Standar:** IPCC 2006 Vol 4 Ch 2 & SNI 7724:2011 (Carbon Accounting)
 
 ---
 
 ## {status_emoji} Status: {status_text}
 
 ### 📊 Metrik Satelit (Fusi Sensor)
-| Parameter | Nilai |
-|-----------|-------|
-| **NDVI Optik (Sentinel-2)** | {site_raw.get('satellite_ndvi_90', 'N/A')} |
-| **Radar VH (Sentinel-1)** | {site_raw.get('radar_vh_db', 'N/A')} dB |
-| **Radar VV (Sentinel-1)** | {site_raw.get('radar_vv_db', 'N/A')} dB |
-| **Metode Estimasi Biomassa** | Multivariable Exponential Fusion (Optik & SAR) |
+| Parameter | Nilai | Referensi |
+|-----------|-------|-----------|
+| **NDVI Optik (Sentinel-2)** | {site_raw.get('satellite_ndvi_90', 'N/A')} | Rouse et al. (1974) |
+| **Radar VH (Sentinel-1)** | {site_raw.get('radar_vh_db', 'N/A')} dB | ESA Copernicus |
+| **Radar VV (Sentinel-1)** | {site_raw.get('radar_vv_db', 'N/A')} dB | ESA Copernicus |
+| **Metode Estimasi** | Random Forest (Optik + SAR Fusion) | Saatchi et al. (2011) |
 
 ### 🌱 Estimasi Karbon & Biomassa
-| Parameter | Nilai |
-|-----------|-------|
-| **Above-Ground Biomass (AGB)** | {site_raw.get('estimated_biomass', 'N/A')} Mg/ha |
-| **Stok Karbon** | {site_raw.get('estimated_carbon', 'N/A')} Mg C/ha |
-| **Faktor Konversi Karbon** | AGB × 0.46 (SNI 7724:2011 Hutan Tropis) |
+| Parameter | Nilai | Referensi |
+|-----------|-------|-----------|
+| **Above-Ground Biomass (AGB)** | {site_raw.get('estimated_biomass', 'N/A')} Mg/ha | RF Model |
+| **Stok Karbon** | {site_raw.get('estimated_carbon', 'N/A')} Mg C/ha | AGB × 0.46 |
+| **Faktor Konversi Karbon** | 0.46 | SNI 7724:2011 |
 
-### 🔬 Validasi Integritas Data
-| Parameter | Nilai |
-|-----------|-------|
-| **Field Biomass Ground Truth** | {ground_truth_biomass} Mg/ha |
-| **Relative Error (RE)** | {site_raw.get('error_margin', 'N/A')} |
-| **Trust Score (Z-Decay)** | {site_esg.get('final_trust_score', 'N/A')} |
-| **GRI 304 Bio-Index** | {site_esg.get('gri_304_biodiversity_score', 'N/A')} |
-| **Status Integritas** | `{site_esg.get('data_integrity_flag', 'N/A')}` |
+### 🔬 Validasi Integritas Data (Standar IPCC)
+| Parameter | Nilai | Referensi |
+|-----------|-------|-----------|
+| **Ground Truth Biomass** | {ground_truth_biomass} Mg/ha | Field inventory |
+| **Relative Error (RE)** | {site_esg.get('relative_error_pct', 'N/A')}% | IPCC 2006 Vol 4 |
+| **Bias** | {site_esg.get('bias_mg_ha', 'N/A')} Mg/ha | Willmott (1982) |
+| **Akurasi** | {site_esg.get('accuracy_pct', 'N/A')}% | 1 - RE |
+| **IPCC Tier** | {site_esg.get('ipcc_tier', 'N/A')} | IPCC 2006 |
+| **Status** | `{site_esg.get('data_integrity_flag', 'N/A')}` | |
 
-> ℹ️ **Catatan Metodologi Ilmiah:** 
-> Estimasi biomassa menggunakan fusi Optik-SAR mengatasi kelemahan saturasi NDVI di hutan tropis padat.
-> Trust score dikalkulasi menggunakan peluruhan eksponensial (exponential decay) berdasarkan Relative Error, 
-> merujuk pada standar ketidakpastian ±15% (IPCC Tier 1).
+> ℹ️ **Catatan Metodologi:**
+> Estimasi biomassa menggunakan Random Forest dengan fusi 5 fitur sensor
+> (Mitchard et al., 2012; Saatchi et al., 2011). Validasi menggunakan
+> Relative Error terhadap data lapangan dengan threshold IPCC 2006:
+> Tier 3 (≤10%), Tier 2 (≤20%), Tier 1 (≤30%).
 
 ---
 *Laporan dihasilkan otomatis oleh GeoESG A.E.C.O Pipeline v2.2*
@@ -321,10 +337,18 @@ def build_metrics_dict(site_raw, site_esg, ground_truth_biomass):
         "ground_truth_biomass": ground_truth_biomass,
         "error_margin": site_raw.get("error_margin"),
         "trust_score": site_esg.get("final_trust_score"),
+        "relative_error_pct": site_esg.get("relative_error_pct"),
+        "bias_mg_ha": site_esg.get("bias_mg_ha"),
+        "accuracy_pct": site_esg.get("accuracy_pct"),
+        "ipcc_tier": site_esg.get("ipcc_tier"),
         "estimated_biomass": site_raw.get("estimated_biomass"),
         "estimated_carbon": site_raw.get("estimated_carbon"),
         "data_integrity_flag": site_esg.get("data_integrity_flag"),
+        "historical_ndvi_series": site_raw.get("historical_ndvi_series"),
+        "historical_trend_slope": site_raw.get("historical_trend_slope"),
+        "ecological_status": site_raw.get("ecological_status"),
     }
+
 
 
 def log_audit(conn, site_id, site_raw, site_esg, ground_truth_biomass):
@@ -400,7 +424,7 @@ async def generate_esg_report(req: AuditRequest):
             req.site_id, site_raw, site_esg, req.ground_truth_biomass
         )
 
-        # Log ke SQLite
+        # Log ke PostgreSQL
         conn = get_db()
         log_audit(conn, req.site_id, site_raw, site_esg, req.ground_truth_biomass)
         conn.commit()
@@ -429,10 +453,31 @@ async def generate_esg_report(req: AuditRequest):
         )
 
 
+# 4. Generate PDF Report (Export via Backend)
+@app.post("/api/export-pdf")
+async def export_pdf(payload: dict = Body(...)):
+    """Menghasilkan PDF laporan audit menggunakan reportlab."""
+    if not generate_pdf_report:
+        raise HTTPException(status_code=500, detail="PDF Generator (reportlab) belum terpasang.")
+    
+    site_id = payload.get("site_id", "Unknown")
+    filename = f"Laporan_Audit_ESG_{site_id.replace(' ', '_')}.pdf"
+    
+    # Simpan di shared_data
+    output_path = os.path.join(BASE_DIR, "shared_data", filename)
+    
+    try:
+        # Panggil generator sinkron
+        generate_pdf_report(payload, output_path)
+        return FileResponse(output_path, filename=filename, media_type="application/pdf")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal generate PDF: {str(e)}")
+
+
 # 4. Audit History
 @app.get("/api/audit-history")
 async def get_audit_history():
-    """Mengembalikan 50 log audit terakhir dari SQLite/PostgreSQL."""
+    """Mengembalikan 50 log audit terakhir dari PostgreSQL."""
     try:
         conn = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -460,21 +505,26 @@ async def get_audit_history():
 @app.get("/api/task-status/{task_id}")
 async def get_task_status(task_id: str):
     """Mengecek status proses background Celery."""
-    task_result = AsyncResult(task_id, app=celery_app)
-    
-    response = {
-        "task_id": task_id,
-        "status": task_result.status,
-    }
-    
-    if task_result.status == 'SUCCESS':
-        response["result"] = task_result.result
-    elif task_result.status == 'PROGRESS':
-        response["meta"] = task_result.info
-    elif task_result.status == 'FAILURE':
-        response["error"] = str(task_result.result)
+    try:
+        from celery.result import AsyncResult
+        from worker import celery_app
+        task_result = AsyncResult(task_id, app=celery_app)
         
-    return JSONResponse(content=response)
+        response = {
+            "task_id": task_id,
+            "status": task_result.status,
+        }
+        
+        if task_result.status == 'SUCCESS':
+            response["result"] = task_result.result
+        elif task_result.status == 'PROGRESS':
+            response["meta"] = task_result.info
+        elif task_result.status == 'FAILURE':
+            response["error"] = str(task_result.result)
+            
+        return JSONResponse(content=response)
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Celery/Redis tidak tersedia. Jalankan docker-compose up.")
 
 
 # 6. Batch Multi-Site Audit (ASYNCHRONOUS MAX)
@@ -485,6 +535,8 @@ async def generate_esg_batch(req: BatchAuditRequest):
     Server akan langsung merespons dengan Task ID (0.1 detik).
     """
     try:
+        from worker import run_pipeline_task
+
         user_inputs = [
             {"site_id": s.site_id, "ground_truth_10": s.ground_truth_biomass}
             for s in req.sites
@@ -503,11 +555,120 @@ async def generate_esg_batch(req: BatchAuditRequest):
             }
         )
 
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Celery/Redis tidak tersedia. Jalankan docker-compose up.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch error: {str(e)}")
 
 
-# 6. Health Check
+# Matplotlib lock — matplotlib is NOT thread-safe; serialize map generation
+_map_lock = threading.Lock()
+
+
+def _generate_map_sync(site_id: str, maps_dir: str) -> str:
+    """Thread-safe map generation wrapper. Holds lock during matplotlib rendering."""
+    import sys
+    sys.path.insert(0, os.path.join(BASE_DIR, "python-gee-ai"))
+    from map_printer import generate_site_map, load_geojson, load_raw_data
+
+    geojson_data = load_geojson()
+    raw_data_list = load_raw_data()
+
+    if not geojson_data:
+        raise FileNotFoundError("GeoJSON tidak ditemukan")
+
+    with _map_lock:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        try:
+            path = generate_site_map(site_id, geojson_data, raw_data_list, maps_dir)
+        finally:
+            plt.close('all')  # Bersihkan semua figure untuk mencegah memory leak & I/O error
+
+    return path
+
+
+# 7. Generate Map Print (Kartografi) — Simpan ke galeri
+@app.post("/api/generate-map/{site_id}")
+async def generate_map(site_id: str):
+    """Generate peta cetak kartografi profesional untuk satu lokasi dan simpan ke galeri."""
+    try:
+        maps_dir = os.path.join(SHARED_DATA, "maps")
+        os.makedirs(maps_dir, exist_ok=True)
+
+        loop = asyncio.get_event_loop()
+        path = await loop.run_in_executor(
+            None, partial(_generate_map_sync, site_id, maps_dir)
+        )
+        if not path:
+            raise HTTPException(status_code=404, detail=f"Site '{site_id}' tidak ditemukan")
+
+        return JSONResponse(content={
+            "status": "success",
+            "site_id": site_id,
+            "filename": os.path.basename(path),
+            "message": f"Peta {site_id} berhasil dicetak dan disimpan ke galeri."
+        })
+    except HTTPException:
+        raise
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Map generation error: {str(e)}")
+
+
+# 8. (Dihapus) Generate All Maps — fitur batch generate dihapus
+
+
+# 9. List Available Maps
+@app.get("/api/maps")
+async def list_maps():
+    """List semua peta yang sudah digenerate."""
+    maps_dir = os.path.join(SHARED_DATA, "maps")
+    if not os.path.exists(maps_dir):
+        return JSONResponse(content={"maps": [], "count": 0})
+
+    files = [f for f in os.listdir(maps_dir) if f.endswith(".png")]
+    return JSONResponse(content={"maps": sorted(files), "count": len(files)})
+
+
+# 10. Download Specific Map
+@app.get("/api/maps/{filename}")
+async def get_map(filename: str):
+    """Download peta spesifik berdasarkan nama file."""
+    # Validasi path traversal: hanya izinkan nama file PNG sederhana
+    if '/' in filename or '\\' in filename or '..' in filename or not filename.endswith('.png'):
+        raise HTTPException(status_code=400, detail="Nama file tidak valid")
+    filepath = os.path.join(SHARED_DATA, "maps", filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Peta tidak ditemukan")
+    return FileResponse(
+        filepath, media_type="image/png", filename=filename,
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+    )
+
+
+# 11. Delete All Maps (Clear Gallery)
+@app.delete("/api/maps")
+async def delete_all_maps():
+    """Hapus semua peta dari galeri."""
+    maps_dir = os.path.join(SHARED_DATA, "maps")
+    if not os.path.exists(maps_dir):
+        return JSONResponse(content={"status": "success", "deleted": 0})
+
+    files = [f for f in os.listdir(maps_dir) if f.endswith(".png")]
+    deleted = 0
+    for f in files:
+        try:
+            os.remove(os.path.join(maps_dir, f))
+            deleted += 1
+        except OSError:
+            pass
+    return JSONResponse(content={"status": "success", "deleted": deleted})
+
+
+# 11. Health Check
 @app.get("/api/health")
 async def health_check():
     """Cek status kesehatan sistem."""
@@ -528,6 +689,7 @@ async def health_check():
         "rust_binary": os.path.exists(
             os.path.join(BASE_DIR, "rust-esg-engine", "target", "release", "rust-esg-engine")
         ) or os.path.exists(os.path.join(BASE_DIR, "rust-esg-engine", "Cargo.toml")),
+        "maps_dir": os.path.exists(os.path.join(SHARED_DATA, "maps")),
     }
     return JSONResponse(
         content={
@@ -536,3 +698,4 @@ async def health_check():
             "timestamp": datetime.datetime.now().isoformat(),
         }
     )
+

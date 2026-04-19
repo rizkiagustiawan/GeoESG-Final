@@ -40,12 +40,9 @@ COPY --from=rust-builder /usr/src/app/target/release/rust-esg-engine /app/rust-e
 # 5. Beri Hak Akses Eksekusi
 RUN chmod +x /app/run_pipeline.sh && chmod +x /app/rust-esg-engine/target/release/rust-esg-engine
 
-# 6. Inisialisasi Database
-RUN python3 /app/init_db.py
-
-# 7. Health Check
+# 6. Health Check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
 EXPOSE 8000 3838
-CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "python3 /app/init_db.py; uvicorn api_server:app --host 0.0.0.0 --port 8000"]

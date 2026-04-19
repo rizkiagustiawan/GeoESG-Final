@@ -1,4 +1,4 @@
-version: "3.9"
+# Docker Compose for GeoESG A.E.C.O
 
 services:
   db:

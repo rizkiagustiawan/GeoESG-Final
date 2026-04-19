@@ -10,9 +10,18 @@ credentials/
 
 # Abaikan database lokal
 shared_data/geoesg.db
+*.db
+
+# Abaikan output peta & vision (file besar, di-generate ulang)
+shared_data/maps/*.png
+python-gee-ai/vision_outputs/
+python-gee-ai/ml_models/*.joblib
 
 # Abaikan file sampah
 Untitled-1.sh
 *.swp
 *.swo
 .DS_Store
+
+# Temp files dari pipeline
+shared_data/.tmp_*/

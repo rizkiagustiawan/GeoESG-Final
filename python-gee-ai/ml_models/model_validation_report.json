@@ -1,0 +1,31 @@
+{
+  "model": "RandomForestRegressor",
+  "n_estimators": 200,
+  "max_depth": 20,
+  "n_training_samples": 8000,
+  "n_test_samples": 2000,
+  "training_data_source": "Science-based synthetic (Mitchard et al., 2012; Saatchi et al., 2011)",
+  "validation_metrics": {
+    "R2": 0.8906,
+    "RMSE_Mg_ha": 13.97,
+    "MAE_Mg_ha": 8.58,
+    "Bias_Mg_ha": 0.07,
+    "Mean_RE_pct": 19.3,
+    "CV_5fold_R2_mean": 0.8896,
+    "CV_5fold_R2_std": 0.0108
+  },
+  "feature_importance": {
+    "NDVI": 0.3878,
+    "S1-VH": 0.1638,
+    "S1-VV": 0.0069,
+    "ALOS-HH": 0.0316,
+    "ALOS-HV": 0.41
+  },
+  "references": [
+    "Mitchard et al. (2012) Remote Sens. Environ. 124:587-598",
+    "Saatchi et al. (2011) PNAS 108(24):9899-9904",
+    "Lucas et al. (2010) IEEE TGRS 48(3):1266-1284",
+    "Chave et al. (2014) Global Change Biol. 20(10):3177-3190"
+  ],
+  "disclaimer": "Model trained on science-based synthetic data. For peer-reviewed publication, retrain with GEDI L4A + field inventory plots."
+}

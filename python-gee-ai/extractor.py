@@ -188,6 +188,22 @@ def extract_historical_trend(region_geometry):
     slope = stats.get('scale').getInfo()
     slope_val = round(slope, 4) if slope is not None else 0.0
 
+    # Dapatkan nilai rata-rata per tahun untuk time-series chart
+    def get_regional_mean(img):
+        mean_val = img.select('NDVI').reduceRegion(
+            reducer=ee.Reducer.mean(), geometry=geom, scale=100, maxPixels=1e9
+        ).get('NDVI')
+        return ee.Feature(None, {'year': img.select('year').reduceRegion(ee.Reducer.mean(), geom, 100).get('year'), 'ndvi': mean_val})
+        
+    ts_features = ee.FeatureCollection(yearly_col.map(get_regional_mean)).getInfo()
+    yearly_ndvi = {}
+    for f in ts_features.get('features', []):
+        props = f.get('properties', {})
+        y = props.get('year')
+        n = props.get('ndvi')
+        if y is not None and n is not None:
+            yearly_ndvi[str(int(y))] = round(n, 3)
+
     if slope_val < -0.005:
         status = "Deforestasi Aktif (Degradasi)"
     elif slope_val > 0.005:
@@ -195,7 +211,7 @@ def extract_historical_trend(region_geometry):
     else:
         status = "Hutan Stabil"
 
-    return slope_val, status
+    return slope_val, status, yearly_ndvi
 
 
 def estimate_biomass_carbon(ndvi, c_vh, c_vv, l_hh, l_hv):
@@ -263,12 +279,15 @@ def extract_fallback(site_id, ground_truth_biomass=150.0):
         status = "Reforestasi Aktif (Sequestrasi)"
     else:
         status = "Hutan Stabil"
+        
+    # Time-series fallback (simulate 5 years ending in current sat_ndvi)
+    yearly_ndvi = {str(2021+i): round(max(0.1, sat_ndvi - (slope_val * (4-i)) + random.uniform(-0.03, 0.03)), 3) for i in range(5)}
 
-    # Simulasi Tree Count Fallback
-    from vision_unet_model import TreeVisionUNet
-    vision_ai = TreeVisionUNet()
-    img_path = vision_ai.generate_synthetic_airbus_imagery(site_id, density=(ground_truth_biomass/300.0))
-    tree_count, _ = vision_ai.predict_tree_crowns(img_path, site_id)
+    # Tree Crown Detection (Classical CV — Ke & Quackenbush, 2011)
+    from tree_crown_detector import TreeCrownDetector
+    detector = TreeCrownDetector()
+    img_path = detector.generate_synthetic_imagery(site_id, density=(ground_truth_biomass/300.0))
+    tree_count, _ = detector.detect_tree_crowns(img_path, site_id)
 
     return {
         "satellite_ndvi_90": sat_ndvi,
@@ -278,6 +297,7 @@ def extract_fallback(site_id, ground_truth_biomass=150.0):
         "alos_hv_db": l_hv,
         "historical_trend_slope": slope_val,
         "ecological_status": status,
+        "historical_ndvi_series": yearly_ndvi,
         "vision_tree_count": tree_count,
         "biomass_data_source": "Fallback (Simulated)",
         "estimated_biomass": biomass,
@@ -344,14 +364,14 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
             l_hh, l_hv = extract_alos_gee(region_geojson, site_id)
             
             print(f"  ⏳ [{site_id}] Menganalisis Time-Series 5 Tahun Terakhir...")
-            slope, eco_status = extract_historical_trend(region_geojson)
+            slope, eco_status, yearly_ndvi = extract_historical_trend(region_geojson)
             
             print(f"  👁️ [{site_id}] Menganalisis Tree Crowns via Vision AI (Resolusi 0.5m)...")
             try:
-                from vision_unet_model import TreeVisionUNet
-                vision_ai = TreeVisionUNet()
-                img_path = vision_ai.generate_synthetic_airbus_imagery(site_id, density=(ground_truth_biomass/300.0))
-                tree_count, _ = vision_ai.predict_tree_crowns(img_path, site_id)
+                from tree_crown_detector import TreeCrownDetector
+                detector = TreeCrownDetector()
+                img_path = detector.generate_synthetic_imagery(site_id, density=(ground_truth_biomass/300.0))
+                tree_count, _ = detector.detect_tree_crowns(img_path, site_id)
             except Exception as e:
                 print(f"Vision Error: {e}")
                 tree_count = 0
@@ -368,6 +388,7 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
             l_hv = fallback["alos_hv_db"]
             slope = fallback["historical_trend_slope"]
             eco_status = fallback["ecological_status"]
+            yearly_ndvi = fallback["historical_ndvi_series"]
             tree_count = fallback["vision_tree_count"]
             biomass = fallback["estimated_biomass"]
             carbon = fallback["estimated_carbon"]
@@ -382,6 +403,7 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
         l_hv = fallback["alos_hv_db"]
         slope = fallback["historical_trend_slope"]
         eco_status = fallback["ecological_status"]
+        yearly_ndvi = fallback["historical_ndvi_series"]
         tree_count = fallback["vision_tree_count"]
         biomass = fallback["estimated_biomass"]
         carbon = fallback["estimated_carbon"]
@@ -399,6 +421,7 @@ def extract_site_data(site_id, ground_truth_biomass, region_geojson=None, use_ge
         "alos_hv_db": l_hv,
         "historical_trend_slope": slope,
         "ecological_status": eco_status,
+        "historical_ndvi_series": yearly_ndvi,
         "vision_tree_count": tree_count,
         "biomass_data_source": source,
         "ground_truth_10": ground_truth_biomass,
@@ -479,6 +502,17 @@ def run_pipeline():
         json.dump(results, f, indent=4)
     print(f"\n📁 Data berhasil ditulis ke: {OUTPUT_PATH}")
     print("✅ Tahap 1: Ekstraksi satelit selesai!")
+
+    # ─── Tahap 1.5: Cetak Peta Kartografi Otomatis ───────────────────
+    try:
+        from map_printer import generate_all_maps, load_geojson
+        geojson_data = load_geojson()
+        if geojson_data:
+            print("\n🗺️  Memulai cetak peta otomatis untuk semua lokasi...")
+            generate_all_maps(geojson_data=geojson_data, raw_data_list=results)
+    except Exception as e:
+        print(f"⚠️  Cetak peta gagal (non-fatal): {e}")
+
     return results
 
 

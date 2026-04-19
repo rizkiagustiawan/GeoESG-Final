@@ -29,13 +29,13 @@ def run_pipeline_task(self, user_inputs: list):
     work_dir = tempfile.mkdtemp(prefix=f"geoesg_batch_{request_id}_")
 
     # Path I/O
-    input_path = os.path.join(work_dir, "user_inputs.json")
+    input_path = os.path.join(work_dir, "user_input.json")
     raw_data_path = os.path.join(work_dir, "raw_data.json")
     esg_metrics_path = os.path.join(work_dir, "esg_metrics.json")
 
     standard_raw = os.path.join(SHARED_DATA, "raw_data.json")
     standard_esg = os.path.join(SHARED_DATA, "esg_metrics.json")
-    standard_in = os.path.join(SHARED_DATA, "user_inputs.json")
+    standard_in = os.path.join(SHARED_DATA, "user_input.json")
 
     try:
         # Update progress ke 10%

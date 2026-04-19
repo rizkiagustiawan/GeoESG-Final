@@ -19,6 +19,13 @@
             --danger: #ef4444; --warn: #f59e0b; --text: #e2e8f0;
             --text-dim: #64748b; --radius: 16px;
         }
+        :root[data-theme="light"] {
+            --bg: #f8fafc; --surface: #ffffff; --card: #ffffff;
+            --border: rgba(14,165,233,0.2); --accent: #0284c7;
+            --accent-glow: rgba(2,132,199,0.15); --success: #059669;
+            --danger: #dc2626; --warn: #d97706; --text: #0f172a;
+            --text-dim: #475569;
+        }
         body {
             font-family: 'Inter', system-ui, sans-serif;
             background: var(--bg); color: var(--text);
@@ -36,6 +43,8 @@
         .logo { display: flex; align-items: center; gap: 12px; }
         .logo h1 { font-size: 1.3rem; font-weight: 700; background: linear-gradient(135deg, var(--accent), #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .logo-sub { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; letter-spacing: 0.5px; text-transform: uppercase; }
+        .theme-btn { margin-left:auto; background:var(--bg); border:1px solid var(--border); border-radius:50%; width:32px; height:32px; cursor:pointer; color:var(--text); transition:all 0.3s; display:flex; align-items:center; justify-content:center; }
+        .theme-btn:hover { border-color:var(--accent); box-shadow:0 0 10px var(--accent-glow); }
         /* Cards */
         .card {
             background: var(--card); border: 1px solid var(--border);
@@ -86,7 +95,7 @@
         /* Main Content */
         .main { flex: 1; display: grid; grid-template-rows: 1fr auto; padding: 20px; gap: 16px; overflow: hidden; }
         #map { height: 100%; border-radius: var(--radius); border: 1px solid var(--border); z-index: 1; }
-        .bottom-panels { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; max-height: 300px; }
+        .bottom-panels { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 16px; max-height: 300px; }
         /* Report panel */
         .report-panel { overflow-y: auto; max-height: 280px; }
         .report-panel h1 { font-size: 1.1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; }
@@ -121,6 +130,61 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        /* Secondary button */
+        .btn-secondary {
+            width: 100%; padding: 11px; border: 1px solid var(--border); border-radius: 12px;
+            font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 600;
+            cursor: pointer; transition: all 0.3s; background: var(--bg); color: var(--accent);
+            margin-top: 8px;
+        }
+        .btn-secondary:hover:not(:disabled) { background: rgba(56,189,248,0.08); border-color: var(--accent); transform: translateY(-1px); }
+        .btn-secondary:disabled { opacity: 0.4; cursor: wait; }
+        .btn-map { background: linear-gradient(135deg, #059669, #10b981); color: white; border: none; }
+        .btn-map:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(16,185,129,0.3); background: linear-gradient(135deg, #047857, #059669); }
+        /* Map Gallery Modal */
+        .modal-overlay { display:none; position:fixed; inset:0; z-index:900; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); }
+        .modal-overlay.active { display:flex; justify-content:center; align-items:center; animation: fadeIn .25s; }
+        .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:20px; width:92vw; max-width:1200px; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; }
+        .modal-header { display:flex; justify-content:space-between; align-items:center; padding:18px 24px; border-bottom:1px solid var(--border); }
+        .modal-header h2 { font-size:1.1rem; font-weight:700; background:linear-gradient(135deg,var(--accent),#818cf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .modal-close { width:36px; height:36px; border:none; border-radius:50%; background:rgba(255,255,255,0.06); color:var(--text-dim); font-size:1.1rem; cursor:pointer; transition:all .3s; display:flex; align-items:center; justify-content:center; }
+        .modal-close:hover { background:rgba(239,68,68,0.2); color:var(--danger); transform:rotate(90deg); }
+        .modal-toolbar { display:flex; gap:10px; padding:14px 24px; border-bottom:1px solid var(--border); flex-wrap:wrap; align-items:center; }
+        .modal-toolbar .filter-btn { padding:6px 16px; border:1px solid var(--border); border-radius:10px; background:var(--card); color:var(--text-dim); font-family:'Inter',sans-serif; font-size:0.78rem; font-weight:500; cursor:pointer; transition:all .3s; }
+        .modal-toolbar .filter-btn:hover,.modal-toolbar .filter-btn.active { background:linear-gradient(135deg,var(--accent),#6366f1); color:white; border-color:transparent; }
+
+        .modal-body { flex:1; overflow-y:auto; padding:20px 24px; }
+        .map-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+        .map-card { background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; transition:all .35s; cursor:pointer; }
+        .map-card:hover { border-color:rgba(56,189,248,0.3); box-shadow:0 6px 30px rgba(56,189,248,0.08); transform:translateY(-3px); }
+        .map-card img { width:100%; aspect-ratio:16/11; object-fit:cover; display:block; transition:transform .4s; }
+        .map-card:hover img { transform:scale(1.03); }
+        .map-card-info { padding:12px 16px; }
+        .map-card-title { font-size:.88rem; font-weight:600; color:var(--text); }
+        .map-card-sub { font-size:.72rem; color:var(--text-dim); margin-top:3px; }
+        .map-card-tags { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+        .map-card-tags span { font-size:.65rem; padding:2px 8px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--text-dim); }
+        .map-dl-btn {
+            display:inline-block; margin-top:10px; padding:6px 16px; border-radius:8px;
+            background:linear-gradient(135deg,var(--accent),#6366f1); color:#fff;
+            font-size:.75rem; font-weight:600; text-decoration:none; text-align:center;
+            transition:all .3s; letter-spacing:.3px;
+        }
+        .map-dl-btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(56,189,248,0.3); }
+        .map-empty { grid-column:1/-1; text-align:center; padding:48px; color:var(--text-dim); }
+        /* Lightbox */
+        .lightbox { display:none; position:fixed; inset:0; z-index:950; background:rgba(0,0,0,0.94); justify-content:center; align-items:center; padding:20px; }
+        .lightbox.active { display:flex; animation: fadeIn .2s; }
+        .lightbox img { max-width:95vw; max-height:90vh; object-fit:contain; border-radius:8px; box-shadow:0 16px 50px rgba(0,0,0,.5); }
+        .lb-close { position:fixed; top:16px; right:20px; width:42px; height:42px; border:none; border-radius:50%; background:rgba(255,255,255,.1); color:white; font-size:1.3rem; cursor:pointer; transition:all .3s; display:flex; align-items:center; justify-content:center; z-index:960; }
+        .lb-close:hover { background:rgba(239,68,68,.5); transform:rotate(90deg); }
+        .lb-nav { position:fixed; top:50%; transform:translateY(-50%); width:46px; height:46px; border:none; border-radius:50%; background:rgba(255,255,255,.08); color:white; font-size:1.3rem; cursor:pointer; transition:all .3s; z-index:960; display:flex; align-items:center; justify-content:center; }
+        .lb-nav:hover { background:rgba(56,189,248,.3); }
+        .lb-nav.prev { left:16px; }
+        .lb-nav.next { right:16px; }
+        .lb-title { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.7); padding:7px 20px; border-radius:10px; color:white; font-size:.85rem; font-weight:600; white-space:nowrap; z-index:960; }
+
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         /* Responsive */
         @media (max-width: 1024px) {
             body { flex-direction: column; }
@@ -128,19 +192,43 @@
             .sidebar > * { flex: 1; min-width: 250px; }
             .main { min-height: 55vh; }
             .bottom-panels { grid-template-columns: 1fr; }
+            .map-grid { grid-template-columns: repeat(auto-fill,minmax(260px,1fr)); }
         }
         @media (max-width: 640px) {
             .sidebar { padding: 12px; gap: 10px; }
             .metric-row { grid-template-columns: 1fr; }
+            .map-grid { grid-template-columns: 1fr; }
         }
+        /* Print CSS */
+        @media print {
+            .sidebar, .modal-overlay, .lightbox, #toast-container { display: none !important; }
+            body { overflow: visible !important; height: auto !important; display: block !important; }
+            .main { display: block !important; height: auto !important; overflow: visible !important; }
+            #map { height: 60vh !important; page-break-after: always; }
+            .bottom-panels { display: block !important; max-height: none !important; }
+            .bottom-panels > .card { max-height: none !important; overflow: visible !important; page-break-inside: avoid; margin-bottom: 16px; }
+            #trendCard { display: block !important; }
+            #exportPdfBtn { display: none !important; }
+            @page { margin: 10mm; size: A4 portrait; }
+        }
+        /* Toast Notification */
+        .toast-container { position: fixed; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 9999; }
+        .toast { background: var(--surface); border-left: 4px solid var(--accent); color: var(--text); padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 10px; animation: toastIn 0.3s ease-out forwards; max-width: 300px; }
+        .toast.success { border-left-color: var(--success); }
+        .toast.error { border-left-color: var(--danger); }
+        .toast.warning { border-left-color: var(--warn); }
+        @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes toastOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
     </style>
 </head>
 <body>
+    <div id="toast-container" class="toast-container"></div>
     <aside class="sidebar">
         <div>
             <div class="logo">
                 <span style="font-size:1.8rem;">🌍</span>
                 <div><h1>GeoESG A.E.C.O</h1><div class="logo-sub">Automated ESG Compliance Observer</div></div>
+                <button onclick="toggleTheme()" class="theme-btn" title="Toggle Light/Dark Mode">🌓</button>
             </div>
         </div>
 
@@ -151,6 +239,7 @@
             <label for="gtInput" style="margin-top:14px;">Field Biomass In-Situ (Mg/ha)</label>
             <input type="number" id="gtInput" value="120.5" step="0.1" min="0" max="500">
             <button class="btn-primary" id="auditBtn" onclick="generateReport()">🛰️ MULAI AUDIT SATELIT</button>
+            <button class="btn-secondary btn-map" id="mapSiteBtn" onclick="generateSiteMap()">🗺️ CETAK PETA LOKASI INI</button>
             <div id="statusBadge" class="status-badge ready">● Sistem Siap</div>
         </div>
 
@@ -158,7 +247,7 @@
             <div class="card-title">📊 Hasil Terakhir</div>
             <div class="metric-row">
                 <div class="metric-pill"><div class="metric-value" id="mBiomass">—</div><div class="metric-label">Sat Biomass (Mg/ha)</div></div>
-                <div class="metric-pill"><div class="metric-value" id="mTrust">—</div><div class="metric-label">Trust Score</div></div>
+                <div class="metric-pill"><div class="metric-value" id="mTrust">—</div><div class="metric-label">Akurasi IPCC (%)</div></div>
             </div>
             <div class="metric-row">
                 <div class="metric-pill"><div class="metric-value" id="mNDVI">—</div><div class="metric-label">NDVI Satelit</div></div>
@@ -170,14 +259,28 @@
             <div class="card-title">📈 Perbandingan Biomassa (Satelit vs Lapangan)</div>
             <canvas id="auditChart" style="max-height:160px;"></canvas>
         </div>
+
+        <div class="card">
+            <div class="card-title">🗺️ Peta Kartografi</div>
+            <button class="btn-secondary" onclick="openGallery()" style="margin-top:0">📂 BUKA GALERI PETA</button>
+            <div id="mapStatus" style="font-size:.75rem;color:var(--text-dim);margin-top:8px;"></div>
+        </div>
     </aside>
 
     <main class="main">
         <div id="map"></div>
         <div class="bottom-panels">
             <div class="card report-panel">
-                <div class="card-title">📄 Laporan Audit</div>
+                <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>📄 Laporan Audit</span>
+                    <button class="btn-secondary" id="exportPdfBtn" style="width:auto; padding:6px 12px; margin:0; font-size:0.75rem; display:none;" onclick="exportPDF()">📥 Download PDF Resmi</button>
+                </div>
                 <div id="reportContainer"><p style="color:var(--text-dim);">Pilih wilayah dan klik "Mulai Audit" untuk memulai...</p></div>
+            </div>
+            <div class="card" id="trendCard" style="display:none; overflow-y:auto; max-height:280px;">
+                <div class="card-title">📉 Tren NDVI 5 Tahun</div>
+                <canvas id="trendChart" style="max-height:160px;"></canvas>
+                <div id="trendStatus" style="font-size:0.75rem; color:var(--text-dim); margin-top:16px; text-align:center; font-weight:600;"></div>
             </div>
             <div class="card" style="overflow-y:auto; max-height:280px;">
                 <div class="card-title">🕒 Riwayat Audit</div>
@@ -185,6 +288,38 @@
             </div>
         </div>
     </main>
+
+    <!-- Map Gallery Modal -->
+    <div class="modal-overlay" id="galleryModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2>🗺️ Galeri Peta Kartografi NTB</h2>
+                <button class="modal-close" onclick="closeGallery()">✕</button>
+            </div>
+            <div class="modal-toolbar">
+                <button class="filter-btn active" onclick="filterGallery('all',this)">🌏 Semua</button>
+                <button class="filter-btn" onclick="filterGallery('lombok',this)">🏝️ Lombok</button>
+                <button class="filter-btn" onclick="filterGallery('sumbawa',this)">🏔️ Sumbawa</button>
+                <span style="flex:1;"></span>
+                <span id="galleryCount" style="font-size:.78rem;color:var(--text-dim);align-self:center;"></span>
+                <button class="filter-btn" style="background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3);" onclick="deleteAllMaps()">🗑️ Hapus Semua</button>
+            </div>
+            <div class="modal-body">
+                <div class="map-grid" id="mapGrid">
+                    <div class="map-empty">Memuat peta...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox">
+        <button class="lb-close" onclick="closeLB()">✕</button>
+        <button class="lb-nav prev" onclick="navLB(-1)">‹</button>
+        <button class="lb-nav next" onclick="navLB(1)">›</button>
+        <img id="lbImg" src="" alt="">
+        <div class="lb-title" id="lbTitle"></div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
@@ -194,8 +329,18 @@
             attribution: '&copy; Esri', maxZoom: 18
         }).addTo(map);
 
-        let geojsonLayer, myChart;
+        let geojsonLayer, myChart, myTrendChart;
+        let lastMetrics = null;
         const siteData = {};
+
+        // ─── Theme Toggle ───────────────────────────────────────────
+        function toggleTheme() {
+            const root = document.documentElement;
+            const isLight = root.getAttribute('data-theme') === 'light';
+            root.setAttribute('data-theme', isLight ? 'dark' : 'light');
+            localStorage.setItem('theme', isLight ? 'dark' : 'light');
+        }
+        if (localStorage.getItem('theme') === 'light') document.documentElement.setAttribute('data-theme', 'light');
 
         // ─── Chart ──────────────────────────────────────────────────
         function initChart(sat = 0, ground = 0) {
@@ -223,6 +368,43 @@
             });
         }
         initChart();
+
+        function initTrendChart(years = [], data = [], slope = 0) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (myTrendChart) myTrendChart.destroy();
+            const color = slope > 0 ? '#10b981' : (slope < 0 ? '#ef4444' : '#f59e0b');
+            myTrendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: years,
+                    datasets: [{
+                        label: 'NDVI',
+                        data: data,
+                        borderColor: color,
+                        backgroundColor: color + '33',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#1a2236',
+                        pointBorderColor: color,
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { min: 0.2, max: 1.0, grid: { color: 'rgba(56,189,248,0.06)' }, ticks: { color: '#64748b', font: { size: 10 } } },
+                        x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } }
+                    }
+                }
+            });
+            const statusEl = document.getElementById('trendStatus');
+            if (slope > 0) statusEl.innerHTML = `<span style="color:#10b981">↗ Reforestasi (Slope: +${slope})</span>`;
+            else if (slope < 0) statusEl.innerHTML = `<span style="color:#ef4444">↘ Deforestasi (Slope: ${slope})</span>`;
+            else statusEl.innerHTML = `<span style="color:#f59e0b">→ Stabil (Slope: ${slope})</span>`;
+        }
 
         // ─── Status ─────────────────────────────────────────────────
         function setStatus(type, text) {
@@ -283,17 +465,33 @@
             const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
         }
 
+        // ─── Favicon ────────────────────────────────────────────────
+        function setFavicon(emoji) {
+            const link = document.querySelector("link[rel='icon']");
+            if(link) link.href = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>${emoji}</text></svg>`;
+        }
+
         // ─── Audit ──────────────────────────────────────────────────
         async function generateReport() {
             const site = document.getElementById('siteSelector').value;
             const gt = parseFloat(document.getElementById('gtInput').value);
             const btn = document.getElementById('auditBtn');
-            if (!site) return alert('Peta belum termuat!');
-            if (isNaN(gt) || gt < 0) return alert('Biomassa lapangan tidak valid');
+            if (!site) return showToast('Peta belum termuat!', 'warning');
+            if (isNaN(gt) || gt < 0) return showToast('Biomassa lapangan tidak valid', 'warning');
 
             btn.disabled = true; btn.textContent = '⏳ Mengeksekusi Pipeline...';
             setStatus('loading', 'Menghubungi satelit...');
-            document.getElementById('reportContainer').innerHTML = '<div class="skeleton" style="height:120px;"></div>';
+            setFavicon('⏳');
+            
+            // Modern Skeleton Loading
+            document.getElementById('reportContainer').innerHTML = `
+                <div class="skeleton" style="height:24px; width:60%; margin-bottom:16px; border-radius:6px;"></div>
+                <div class="skeleton" style="height:120px; width:100%; margin-bottom:12px; border-radius:8px;"></div>
+                <div class="skeleton" style="height:80px; width:100%; margin-bottom:12px; border-radius:8px;"></div>
+                <div class="skeleton" style="height:20px; width:40%; border-radius:4px;"></div>
+            `;
+            document.getElementById('metricsCard').style.display = 'none';
+            document.getElementById('trendCard').style.display = 'none';
 
             try {
                 const res = await fetch('/generate-esg-report', {
@@ -310,26 +508,244 @@
                     document.getElementById('reportContainer').innerHTML = marked.parse(data.report_markdown);
                     // Update metrics
                     const m = data.metrics;
+                    lastMetrics = m;
+                    lastMetrics.site_id = site;
+                    document.getElementById('exportPdfBtn').style.display = 'block';
+                    
                     document.getElementById('metricsCard').style.display = 'block';
                     document.getElementById('mNDVI').textContent = m.satellite_ndvi_90?.toFixed(3) || '—';
-                    document.getElementById('mTrust').textContent = m.trust_score?.toFixed(3) || '—';
+                    document.getElementById('mTrust').textContent = m.accuracy_pct ? m.accuracy_pct.toFixed(1) + '%' : (m.trust_score?.toFixed(3) || '—');
                     document.getElementById('mBiomass').textContent = m.estimated_biomass?.toFixed(1) || '—';
                     document.getElementById('mCarbon').textContent = m.estimated_carbon?.toFixed(1) || '—';
                     document.getElementById('mTrust').style.color = m.data_integrity_flag?.includes('PASS') ? 'var(--success)' : 'var(--danger)';
                     // Update chart (menggunakan Biomassa untuk perbandingan)
                     initChart(m.estimated_biomass, gt);
+                    // Update Trend Chart
+                    if (m.historical_ndvi_series) {
+                        document.getElementById('trendCard').style.display = 'block';
+                        const years = Object.keys(m.historical_ndvi_series).sort();
+                        const data = years.map(y => m.historical_ndvi_series[y]);
+                        initTrendChart(years, data, m.historical_trend_slope);
+                    }
                     // Update map polygon
                     const layer = siteData[site].poly;
                     const pass = m.data_integrity_flag?.includes('PASS');
-                    layer.setStyle({ color: pass ? '#10b981' : '#ef4444', fillColor: pass ? '#10b981' : '#ef4444', fillOpacity: 0.5, weight: 2.5, dashArray: '' });
-                    layer.setPopupContent(`<b style="font-size:14px;">${escapeHtml(site)}</b><br><span style="color:${pass ? '#10b981' : '#ef4444'}; font-weight:bold;">${pass ? '✅ LULUS AUDIT' : '❌ RISIKO GREENWASHING'}</span><br><span style="color:#94a3b8; font-size:12px;">NDVI: ${m.satellite_ndvi_90} | Trust: ${m.trust_score?.toFixed(3)}</span>`).openPopup();
+                    const ndvi = m.satellite_ndvi_90 || 0;
+                    
+                    // Favicon Update
+                    setFavicon(pass ? '🟢' : '🔴');
+                    
+                    let polyColor = '#10b981'; // Green (Sehat)
+                    if (ndvi < 0.4) polyColor = '#ef4444'; // Red (Kritis)
+                    else if (ndvi < 0.7) polyColor = '#f59e0b'; // Yellow (Sedang)
+                    
+                    layer.setStyle({ color: polyColor, fillColor: polyColor, fillOpacity: 0.6, weight: 2.5, dashArray: '' });
+                    layer.setPopupContent(`<b style="font-size:14px;">${escapeHtml(site)}</b><br><span style="color:${pass ? '#10b981' : '#ef4444'}; font-weight:bold;">${pass ? '✅ LULUS AUDIT' : '❌ GAGAL AUDIT'}</span><br><span style="color:${polyColor}; font-weight:bold;">NDVI: ${ndvi.toFixed(3)}</span> | <span style="color:#94a3b8; font-size:12px;">IPCC: ${m.ipcc_tier || 'N/A'} (RE: ${m.relative_error_pct?.toFixed(1) || '?'}%)</span>`).openPopup();
                     updateHistory();
+
+                    // ── Auto-generate peta kartografi setelah audit berhasil ──
+                    showToast('Mencetak peta kartografi ' + site + '...', 'success');
+                    document.getElementById('mapStatus').innerHTML = '<span class="pulse" style="color:var(--warn)">◉</span> Mencetak peta ' + site + '...';
+                    fetch('/api/generate-map/' + encodeURIComponent(site), { method:'POST' })
+                        .then(r => r.json())
+                        .then(d => {
+                            if(d.status === 'success') {
+                                document.getElementById('mapStatus').textContent = '✅ Peta ' + site + ' tersimpan di galeri.';
+                                showToast('🗺️ Peta ' + site + ' siap di galeri!', 'success');
+                                if(document.getElementById('galleryModal').classList.contains('active')) loadGalleryMaps();
+                            }
+                        })
+                        .catch(() => {
+                            document.getElementById('mapStatus').textContent = '⚠️ Peta gagal dicetak.';
+                        });
                 }
             } catch (err) {
                 setStatus('error', 'Gagal: ' + err.message);
                 document.getElementById('reportContainer').innerHTML = `<p style="color:var(--danger);">❌ ${escapeHtml(err.message)}</p>`;
             } finally {
                 btn.disabled = false; btn.textContent = '🛰️ MULAI AUDIT SATELIT';
+            }
+        }
+
+        // ─── Map Gallery ────────────────────────────────────────────
+        const REGION_MAP = {
+            'Bima':'sumbawa','Kota Bima':'sumbawa','Sumbawa Barat':'sumbawa',
+            'Sumbawa':'sumbawa','Dompu':'sumbawa',
+            'Lombok Barat':'lombok','Lombok Tengah':'lombok',
+            'Lombok Timur':'lombok','Lombok Utara':'lombok','Kota Mataram':'lombok',
+            'Mataram':'lombok'
+        };
+        let galleryMaps = [];
+        let galleryFilter = 'all';
+        let lbIndex = 0;
+
+        function openGallery() {
+            document.getElementById('galleryModal').classList.add('active');
+            loadGalleryMaps();
+        }
+        function closeGallery() {
+            document.getElementById('galleryModal').classList.remove('active');
+        }
+
+        async function loadGalleryMaps() {
+            try {
+                const res = await fetch('/api/maps');
+                const data = await res.json();
+                galleryMaps = (data.maps || []).map(f => {
+                    const match = f.match(/peta_(.+?)_\d{8}\.png/);
+                    const slug = match ? match[1] : f;
+                    const name = slug.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+                    const region = Object.entries(REGION_MAP).find(([k])=> slug.includes(k.toLowerCase().replace(/ /g,'_')));
+                    return { file:f, slug, name, region: region?region[1]:'other' };
+                });
+                renderGallery();
+            } catch(e) {
+                document.getElementById('mapGrid').innerHTML = '<div class="map-empty">❌ Gagal memuat. Pastikan API server berjalan.</div>';
+            }
+        }
+
+        function renderGallery() {
+            const grid = document.getElementById('mapGrid');
+            const filtered = galleryFilter==='all' ? galleryMaps : galleryMaps.filter(m=>m.region===galleryFilter);
+            if(!filtered.length) { grid.innerHTML='<div class="map-empty">Belum ada peta. Klik "Generate Semua Peta" untuk memulai.</div>'; return; }
+            document.getElementById('galleryCount').textContent = `${filtered.length} peta`;
+            grid.innerHTML = filtered.map((m,i) => `
+                <div class="map-card">
+                    <div style="position:relative;cursor:pointer;" onclick="openLB(${galleryMaps.indexOf(m)})">
+                        <img src="/api/maps/${m.file}" alt="${m.name}" loading="lazy">
+                    </div>
+                    <div class="map-card-info">
+                        <div class="map-card-title">${m.name}</div>
+                        <div class="map-card-sub">Provinsi Nusa Tenggara Barat</div>
+                        <div class="map-card-tags">
+                            <span>📐 EPSG:4326</span><span>📅 2026</span><span>👤 Rizki Agustiawan</span>
+                        </div>
+                        <a href="/api/maps/${m.file}" download="${m.file}" class="map-dl-btn" onclick="event.stopPropagation();">⬇ Download</a>
+                    </div>
+                </div>`).join('');
+        }
+
+        function filterGallery(f, btn) {
+            galleryFilter = f;
+            document.querySelectorAll('.modal-toolbar .filter-btn').forEach(b=>b.classList.remove('active'));
+            if(btn) btn.classList.add('active');
+            renderGallery();
+        }
+
+        async function deleteAllMaps() {
+            if (!galleryMaps.length) { showToast('Galeri sudah kosong.', 'warn'); return; }
+            const ok = confirm(`Hapus semua ${galleryMaps.length} peta dari galeri?\n\nAksi ini tidak dapat dibatalkan.`);
+            if (!ok) return;
+            try {
+                const res = await fetch('/api/maps', { method: 'DELETE' });
+                const data = await res.json();
+                showToast(`🗑️ ${data.deleted} peta berhasil dihapus.`, 'success');
+                galleryMaps = [];
+                renderGallery();
+                document.getElementById('galleryCount').textContent = '0 peta';
+            } catch(e) {
+                showToast('Gagal menghapus peta.', 'error');
+            }
+        }
+
+        // ─── Lightbox ───────────────────────────────────────────────
+        function openLB(idx) {
+            lbIndex = idx;
+            const m = galleryMaps[idx];
+            document.getElementById('lbImg').src = '/api/maps/' + m.file;
+            document.getElementById('lbTitle').textContent = m.name;
+            document.getElementById('lightbox').classList.add('active');
+        }
+        function closeLB() { document.getElementById('lightbox').classList.remove('active'); }
+        function navLB(dir) {
+            lbIndex = (lbIndex + dir + galleryMaps.length) % galleryMaps.length;
+            openLB(lbIndex);
+        }
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : '⚠️');
+            toast.innerHTML = `<span>${icon}</span> <span>${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'toastOut 0.3s ease-in forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        document.addEventListener('keydown', e => {
+            if(e.key==='Escape') {
+                if(document.getElementById('lightbox').classList.contains('active')) closeLB();
+                else if(document.getElementById('galleryModal').classList.contains('active')) closeGallery();
+            }
+            if(document.getElementById('lightbox').classList.contains('active')) {
+                if(e.key==='ArrowLeft') navLB(-1);
+                if(e.key==='ArrowRight') navLB(1);
+                return;
+            }
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'SELECT') {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('auditBtn').click();
+                }
+                if (e.key === 'g' || e.key === 'G') {
+                    e.preventDefault();
+                    openGallery();
+                }
+            }
+        });
+
+        // ─── Generate Maps ──────────────────────────────────────────
+        async function generateSiteMap() {
+            const site = document.getElementById('siteSelector').value;
+            if(!site) return showToast('Pilih wilayah dulu!', 'warning');
+            const btn = document.getElementById('mapSiteBtn');
+            btn.disabled = true; btn.textContent = '⏳ Mencetak peta...';
+            setStatus('loading', 'Mencetak peta ' + site + '...');
+            try {
+                const res = await fetch('/api/generate-map/' + encodeURIComponent(site), { method:'POST' });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.detail || 'Gagal generate peta');
+                setStatus('success', 'Peta ' + site + ' berhasil disimpan ke galeri!');
+                document.getElementById('mapStatus').textContent = '✅ Peta ' + site + ' tersimpan di galeri.';
+                showToast('Peta ' + site + ' berhasil disimpan ke galeri!', 'success');
+                // Auto-refresh gallery jika sedang terbuka
+                if(document.getElementById('galleryModal').classList.contains('active')) loadGalleryMaps();
+            } catch(err) {
+                setStatus('error', 'Gagal: ' + err.message);
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false; btn.textContent = '🗺️ CETAK PETA LOKASI INI';
+            }
+        }
+
+        // ─── Export PDF ─────────────────────────────────────────────
+        async function exportPDF() {
+            if (!lastMetrics) return showToast('Belum ada data audit', 'warning');
+            const btn = document.getElementById('exportPdfBtn');
+            btn.disabled = true; btn.textContent = '⏳ Loading...';
+            setStatus('loading', 'Menghasilkan PDF Resmi...');
+            try {
+                const res = await fetch('/api/export-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(lastMetrics)
+                });
+                if (!res.ok) throw new Error('Gagal membuat PDF dari server');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Laporan_Audit_ESG_${lastMetrics.site_id.replace(/ /g, '_')}.pdf`;
+                document.body.appendChild(a); a.click(); a.remove();
+                showToast('PDF berhasil diunduh!', 'success');
+                setStatus('success', 'PDF berhasil diunduh!');
+            } catch (err) {
+                showToast(err.message, 'error');
+                setStatus('error', err.message);
+            } finally {
+                btn.disabled = false; btn.textContent = '📥 Download PDF Resmi';
             }
         }
 

@@ -19,7 +19,7 @@ cd ..
 echo "----------------------------------------"
 
 # 3. Pelaporan R
-cd r-reporting && Rscript dashboard.R
+cd r-reporting && Rscript -e "shiny::runApp('app.R', port=3838, launch.browser=FALSE)" &
 cd ..
 echo "----------------------------------------"
 echo "🎉 Eksekusi selesai! Laporan Markdown telah diperbarui."
